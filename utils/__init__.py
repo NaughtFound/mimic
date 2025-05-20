@@ -6,7 +6,7 @@ from typing import Optional, Union
 from torchvision.datasets.utils import check_integrity, extract_archive
 from tqdm import tqdm
 
-USER_AGENT = "physionet/mimic"
+USER_AGENT = "Wget/1.21.4"
 
 
 def _urlretrieve(
