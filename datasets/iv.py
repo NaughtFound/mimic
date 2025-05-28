@@ -22,6 +22,7 @@ class MIMIC_IV_Sheet:
         scaler: list[Scaler] = None,
         train: bool = True,
         clear_before_insert: bool = True,
+        force_insert: bool = False,
     ):
         self.root = root
         self.table_name = table_name
@@ -29,6 +30,7 @@ class MIMIC_IV_Sheet:
         self.id_column = id_column
         self.scaler = scaler
         self.train = train
+        self.force_insert = force_insert
 
         os.makedirs(MIMIC_IV.get_raw_folder(root), exist_ok=True)
 
@@ -70,6 +72,11 @@ class MIMIC_IV_Sheet:
         self.connection.execute(insert_query)
 
     def load_csv(self):
+        csv_path = os.path.join(self.root, "transformed", f"{self.table_name}.csv")
+
+        if os.path.exists(csv_path) and not self.force_insert:
+            return
+
         df = pd.read_csv(
             self.source_csv_path,
             usecols=self.columns.keys(),
@@ -81,11 +88,7 @@ class MIMIC_IV_Sheet:
 
         df = self._transform_data(df)
 
-        csv_path = self.source_csv_path
-
-        if self.scaler is not None:
-            os.makedirs(os.path.join(self.root, "transformed"), exist_ok=True)
-            csv_path = os.path.join(self.root, "transformed", f"{self.table_name}.csv")
+        os.makedirs(os.path.join(self.root, "transformed"), exist_ok=True)
 
         df.to_csv(csv_path, index=False)
 
