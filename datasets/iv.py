@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any, Union
+from typing import Callable, Union
 from torch.utils.data import Dataset
 from torchvision.datasets.utils import check_integrity
 import duckdb
@@ -20,6 +20,7 @@ class MIMIC_IV_Sheet:
         columns: dict[str, str],
         id_column: str,
         scaler: list[Scaler] = None,
+        transform: Callable[[pd.DataFrame], pd.DataFrame] = None,
         train: bool = True,
         clear_before_insert: bool = True,
         force_insert: bool = False,
@@ -29,6 +30,7 @@ class MIMIC_IV_Sheet:
         self.columns = columns
         self.id_column = id_column
         self.scaler = scaler
+        self.transform = transform
         self.train = train
         self.force_insert = force_insert
 
@@ -57,7 +59,10 @@ class MIMIC_IV_Sheet:
         self.connection.execute(delete_query)
 
     def _transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        if not self.scaler:
+        if self.transform is not None:
+            df = self.transform(df)
+
+        if self.scaler is None:
             return df
 
         for s in self.scaler:
