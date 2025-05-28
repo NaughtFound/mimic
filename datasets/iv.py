@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 from torchvision.datasets.utils import check_integrity
 import duckdb
 import pandas as pd
+from tqdm import tqdm
 from utils import download_and_extract_archive
 from utils.env import Env
 
@@ -151,5 +152,7 @@ class MIMIC_IV(Dataset):
     def _load_data(self):
         self.data = {}
 
-        for sheet in self.sheets:
-            pass
+        for k in tqdm(self.sheets, desc="Loading data"):
+            sheet = self.sheets[k]
+            csv_path = os.path.join(self.raw_folder, f"{k}.csv")
+            sheet.load_csv(csv_path)
