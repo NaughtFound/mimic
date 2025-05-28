@@ -21,6 +21,7 @@ class MIMIC_IV_Sheet:
         transform_columns: list[str] = None,
         scaler: Any = None,
         train: bool = True,
+        clear_before_insert: bool = True,
     ):
         self.root = root
         self.table_name = table_name
@@ -30,17 +31,29 @@ class MIMIC_IV_Sheet:
         self.scaler = scaler
         self.train = train
 
-        self.source_csv_path = os.path.join(root, f"{table_name}.csv")
+        os.makedirs(MIMIC_IV.get_raw_folder(root), exist_ok=True)
+
+        self.source_csv_path = os.path.join(
+            MIMIC_IV.get_raw_folder(root),
+            f"{table_name}.csv",
+        )
         self.db_path = db_path
 
         self.connection = duckdb.connect(database=self.db_path, read_only=False)
 
         self._create_table()
 
+        if clear_before_insert:
+            self._clear_table()
+
     def _create_table(self):
         columns_str = ", ".join(f"{col} {dtype}" for col, dtype in self.columns.items())
         create_query = f"CREATE TABLE IF NOT EXISTS {self.table_name} ({columns_str});"
         self.connection.execute(create_query)
+
+    def _clear_table(self):
+        delete_query = f"DELETE FROM {self.table_name};"
+        self.connection.execute(delete_query)
 
     def _transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
         if not self.transform_columns:
@@ -68,8 +81,12 @@ class MIMIC_IV_Sheet:
         )
         self.connection.execute(insert_query)
 
-    def load_csv(self, csv_path: str):
-        df = pd.read_csv(csv_path, usecols=self.columns.keys(), dtype=self.columns)
+    def load_csv(self):
+        df = pd.read_csv(
+            self.source_csv_path,
+            usecols=self.columns.keys(),
+            dtype=self.columns,
+        )
 
         if self.id_column not in df.columns:
             raise ValueError(f"CSV file must contain an '{self.id_column}' column.")
@@ -135,6 +152,10 @@ class MIMIC_IV(Dataset):
     def raw_folder(self) -> str:
         return os.path.join(self.root, self.__class__.__name__)
 
+    @staticmethod
+    def get_raw_folder(root: str):
+        return os.path.join(root, MIMIC_IV.__name__)
+
     def download(self):
         if self._check_exists():
             return
@@ -153,6 +174,4 @@ class MIMIC_IV(Dataset):
         self.data = {}
 
         for k in tqdm(self.sheets, desc="Loading data"):
-            sheet = self.sheets[k]
-            csv_path = os.path.join(self.raw_folder, f"{k}.csv")
-            sheet.load_csv(csv_path)
+            self.sheets[k].load_csv()
