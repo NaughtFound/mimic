@@ -23,7 +23,7 @@ class MIMIC_IV_Sheet:
         table_fields: dict[str, str] = None,
         transform: Callable[[pd.DataFrame], pd.DataFrame] = None,
         train: bool = True,
-        clear_before_insert: bool = True,
+        drop_table: bool = True,
         force_insert: bool = False,
     ):
         self.root = root
@@ -49,10 +49,10 @@ class MIMIC_IV_Sheet:
 
         self.connection = duckdb.connect(database=self.db_path, read_only=False)
 
-        self._create_table()
+        if drop_table:
+            self._drop_table()
 
-        if clear_before_insert:
-            self._clear_table()
+        self._create_table()
 
     def _create_table(self):
         columns_str = ", ".join(
@@ -61,9 +61,9 @@ class MIMIC_IV_Sheet:
         create_query = f"CREATE TABLE IF NOT EXISTS {self.table_name} ({columns_str});"
         self.connection.execute(create_query)
 
-    def _clear_table(self):
-        delete_query = f"DELETE FROM {self.table_name};"
-        self.connection.execute(delete_query)
+    def _drop_table(self):
+        drop_query = f"DROP TABLE IF EXISTS {self.table_name};"
+        self.connection.execute(drop_query)
 
     def _transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
         if self.transform is not None:
