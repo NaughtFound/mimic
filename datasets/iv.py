@@ -15,11 +15,12 @@ class MIMIC_IV_Sheet:
     def __init__(
         self,
         root: str,
-        db_path: str,
+        db_name: str,
         table_name: str,
         columns: dict[str, str],
         id_column: str,
         scaler: list[Scaler] = None,
+        table_fields: dict[str, str] = None,
         transform: Callable[[pd.DataFrame], pd.DataFrame] = None,
         train: bool = True,
         clear_before_insert: bool = True,
@@ -34,13 +35,17 @@ class MIMIC_IV_Sheet:
         self.train = train
         self.force_insert = force_insert
 
-        os.makedirs(MIMIC_IV.get_raw_folder(root), exist_ok=True)
+        self.dataset_root = MIMIC_IV.get_raw_folder(root)
 
-        self.source_csv_path = os.path.join(
-            MIMIC_IV.get_raw_folder(root),
-            f"{table_name}.csv",
-        )
-        self.db_path = db_path
+        if table_fields is None:
+            table_fields = columns
+
+        self.table_fields = table_fields
+
+        os.makedirs(self.dataset_root, exist_ok=True)
+
+        self.source_csv_path = os.path.join(self.dataset_root, f"{table_name}.csv")
+        self.db_path = os.path.join(self.dataset_root, db_name)
 
         self.connection = duckdb.connect(database=self.db_path, read_only=False)
 
@@ -50,7 +55,9 @@ class MIMIC_IV_Sheet:
             self._clear_table()
 
     def _create_table(self):
-        columns_str = ", ".join(f"{col} {dtype}" for col, dtype in self.columns.items())
+        columns_str = ", ".join(
+            f"{col} {dtype}" for col, dtype in self.table_fields.items()
+        )
         create_query = f"CREATE TABLE IF NOT EXISTS {self.table_name} ({columns_str});"
         self.connection.execute(create_query)
 
@@ -77,7 +84,11 @@ class MIMIC_IV_Sheet:
         self.connection.execute(insert_query)
 
     def load_csv(self):
-        csv_path = os.path.join(self.root, "transformed", f"{self.table_name}.csv")
+        csv_path = os.path.join(
+            self.dataset_root,
+            "transformed",
+            f"{self.table_name}.csv",
+        )
 
         if os.path.exists(csv_path) and not self.force_insert:
             return
@@ -93,7 +104,7 @@ class MIMIC_IV_Sheet:
 
         df = self._transform_data(df)
 
-        os.makedirs(os.path.join(self.root, "transformed"), exist_ok=True)
+        os.makedirs(os.path.join(self.dataset_root, "transformed"), exist_ok=True)
 
         df.to_csv(csv_path, index=False)
 
