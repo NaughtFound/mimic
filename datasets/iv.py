@@ -8,6 +8,7 @@ import pandas as pd
 from tqdm import tqdm
 from utils import download_and_extract_archive
 from utils.env import Env
+from utils.scaler import Scaler
 
 
 class MIMIC_IV_Sheet:
@@ -18,8 +19,7 @@ class MIMIC_IV_Sheet:
         table_name: str,
         columns: dict[str, str],
         id_column: str,
-        transform_columns: list[str] = None,
-        scaler: Any = None,
+        scaler: list[Scaler] = None,
         train: bool = True,
         clear_before_insert: bool = True,
     ):
@@ -27,7 +27,6 @@ class MIMIC_IV_Sheet:
         self.table_name = table_name
         self.columns = columns
         self.id_column = id_column
-        self.transform_columns = transform_columns
         self.scaler = scaler
         self.train = train
 
@@ -56,22 +55,11 @@ class MIMIC_IV_Sheet:
         self.connection.execute(delete_query)
 
     def _transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        if not self.transform_columns:
-            return df
-
         if not self.scaler:
             return df
 
-        missing_columns = [
-            col for col in self.transform_columns if col not in df.columns
-        ]
-        if missing_columns:
-            raise ValueError(f"Columns {missing_columns} not found in CSV.")
-
-        if self.train:
-            self.scaler.fit(df[self.transform_columns])
-
-        df[self.transform_columns] = self.scaler.transform(df[self.transform_columns])
+        for s in self.scaler:
+            df = s.transform(df)
 
         return df
 
