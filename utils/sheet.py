@@ -1,5 +1,5 @@
 import os
-from typing import Callable
+from typing import Callable, Literal, Union
 import duckdb
 import pandas as pd
 from utils.scaler import Scaler
@@ -101,8 +101,60 @@ class Sheet:
     def close(self):
         self.connection.close()
 
-    def get_by_row_id(self, row_id: int):
-        pass
+    def exec(self, query: "SheetQuery"):
+        df = self.connection.execute(query.parse()).fetch_df()
+        return df
 
-    def get_by_id(self, id: int):
-        pass
+
+class SheetQuery:
+    def __init__(self, query: Union[str, list[str]]):
+        if type(query) is str:
+            query = [query]
+
+        self.query = query
+
+    def parse(self) -> str:
+        final_query = " ".join(self.query) + ";"
+
+        return final_query
+
+    def find_by_row_id(self, row_id: int) -> "SheetQuery":
+        self.query.append(f"LIMIT 1 OFFSET {row_id}")
+
+        return self
+
+    def find_by_id(self, column_id: str, id: str) -> "SheetQuery":
+        self.query.append(f"WHERE {column_id}={id} LIMIT 1")
+
+        return self
+
+    @staticmethod
+    def select(
+        sheet: Sheet,
+        columns: Union[str, list[str]] = "*",
+    ) -> "SheetQuery":
+        if type(columns) is list:
+            columns = ",".join(columns)
+
+        query = [f"SELECT {columns} FROM {sheet.table_name}"]
+
+        return SheetQuery(query)
+
+    @staticmethod
+    def join(
+        l_sheet: Sheet,
+        r_sheet: Sheet,
+        columns: Union[str, list[str]] = "*",
+        mode: Literal["left", "right", "natural"] = "natural",
+    ) -> "SheetQuery":
+        sq = SheetQuery.select(l_sheet, columns)
+
+        if mode == "left" or mode == "right":
+            sq.query.append(
+                f"{mode.upper()} JOIN {r_sheet.table_name} ON {l_sheet.table_name}.{l_sheet.id_column}={r_sheet.table_name}.{r_sheet.id_column}"
+            )
+
+        if mode == "natural":
+            sq.query.append(f"{mode.upper()} JOIN {r_sheet.table_name}")
+
+        return sq
