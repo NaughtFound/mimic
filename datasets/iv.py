@@ -1,124 +1,19 @@
 import os
 from pathlib import Path
-from typing import Callable, Union
+from typing import Union
 from torch.utils.data import Dataset
 from torchvision.datasets.utils import check_integrity
-import duckdb
-import pandas as pd
 from tqdm import tqdm
 from utils import download_and_extract_archive
 from utils.env import Env
-from utils.scaler import Scaler
-
-
-class MIMIC_IV_Sheet:
-    def __init__(
-        self,
-        root: str,
-        db_name: str,
-        table_name: str,
-        columns: dict[str, str],
-        id_column: str,
-        scaler: list[Scaler] = None,
-        table_fields: dict[str, str] = None,
-        transform: Callable[[pd.DataFrame], pd.DataFrame] = None,
-        train: bool = True,
-        drop_table: bool = True,
-        force_insert: bool = False,
-    ):
-        self.root = root
-        self.table_name = table_name
-        self.columns = columns
-        self.id_column = id_column
-        self.scaler = scaler
-        self.transform = transform
-        self.train = train
-        self.force_insert = force_insert
-
-        self.dataset_root = MIMIC_IV.get_raw_folder(root)
-
-        if table_fields is None:
-            table_fields = columns
-
-        self.table_fields = table_fields
-
-        os.makedirs(self.dataset_root, exist_ok=True)
-
-        self.source_csv_path = os.path.join(self.dataset_root, f"{table_name}.csv")
-        self.db_path = os.path.join(self.dataset_root, db_name)
-
-        self.connection = duckdb.connect(database=self.db_path, read_only=False)
-
-        if drop_table:
-            self._drop_table()
-
-        self._create_table()
-
-    def _create_table(self):
-        columns_str = ", ".join(
-            f"{col} {dtype}" for col, dtype in self.table_fields.items()
-        )
-        create_query = f"CREATE TABLE IF NOT EXISTS {self.table_name} ({columns_str});"
-        self.connection.execute(create_query)
-
-    def _drop_table(self):
-        drop_query = f"DROP TABLE IF EXISTS {self.table_name};"
-        self.connection.execute(drop_query)
-
-    def _transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        if self.transform is not None:
-            df = self.transform(df)
-
-        if self.scaler is None:
-            return df
-
-        for s in self.scaler:
-            df = s.transform(df)
-
-        return df
-
-    def _insert_data(self, csv_path: str):
-        insert_query = (
-            f"COPY {self.table_name} FROM '{csv_path}' (FORMAT CSV, HEADER TRUE);"
-        )
-        self.connection.execute(insert_query)
-
-    def load_csv(self):
-        csv_path = os.path.join(
-            self.dataset_root,
-            "transformed",
-            f"{self.table_name}.csv",
-        )
-
-        if os.path.exists(csv_path) and not self.force_insert:
-            return
-
-        df = pd.read_csv(
-            self.source_csv_path,
-            usecols=self.columns.keys(),
-            dtype=self.columns,
-        )
-
-        if self.id_column not in df.columns:
-            raise ValueError(f"CSV file must contain an '{self.id_column}' column.")
-
-        df = self._transform_data(df)
-
-        os.makedirs(os.path.join(self.dataset_root, "transformed"), exist_ok=True)
-
-        df.to_csv(csv_path, index=False)
-
-        self._insert_data(csv_path)
-
-    def close(self):
-        self.connection.close()
+from utils.sheet import Sheet
 
 
 class MIMIC_IV(Dataset):
     def __init__(
         self,
         root: Union[str, Path],
-        sheets: dict[str, MIMIC_IV_Sheet],
+        sheets: dict[str, Sheet],
         download: bool = False,
     ):
         super().__init__()
