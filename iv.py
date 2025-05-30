@@ -6,10 +6,10 @@ from torch.utils.data import Dataset
 from torchvision.datasets.utils import check_integrity
 from tqdm import tqdm
 import pandas as pd
-from ..utils import download_and_extract_archive
-from ..utils.env import Env
-from ..utils.sheet import Sheet, SheetQuery
-from ..utils.db import DuckDB
+from utils import download_and_extract_archive
+from utils.env import Env
+from utils.sheet import Sheet, SheetQuery
+from utils.db import DuckDB
 
 
 class MIMIC_IV(Dataset):
@@ -109,7 +109,7 @@ class MIMIC_IV(Dataset):
     def get_by_id(self, id: int) -> pd.DataFrame:
         query = self.main_query.find_by_id(self.column_id, id, inplace=False)
 
-        df = self.db.fetch_df(query)
+        df = self.db.fetch_df(query).drop(columns=["row_num"])
 
         return df
 
@@ -121,7 +121,7 @@ class MIMIC_IV(Dataset):
     def __getitem__(self, idx: int):
         query = self.main_query.find_by_row_id(idx, inplace=False)
 
-        df = self.db.fetch_df(query)
+        df = self.db.fetch_df(query).drop(columns=["row_num"])
 
         df_tensor = torch.from_numpy(df.to_numpy())
 

@@ -123,13 +123,32 @@ class SheetQuery(Query):
 
         return final_query
 
-    def find_by_row_id(self, row_id: int, inplace: bool = True) -> "SheetQuery":
-        query = f"LIMIT 1 OFFSET {row_id}"
+    def find_by_row_id(
+        self,
+        row_id: Union[int, list[int]],
+        inplace: bool = True,
+    ) -> "SheetQuery":
+        if type(row_id) is int:
+            row_id = [row_id]
 
-        return self._add_query(query, inplace)
+        query = f"SELECT * FROM ({' '.join(self.query)}) WHERE row_num IN ({', '.join(map(str, row_id))})"
 
-    def find_by_id(self, column_id: str, id: str, inplace: bool = True) -> "SheetQuery":
-        query = f"WHERE {column_id}={id} LIMIT 1"
+        if inplace:
+            self.query = [query]
+            return self
+        else:
+            return SheetQuery(query)
+
+    def find_by_id(
+        self,
+        column_id: str,
+        id: Union[str, list[str]],
+        inplace: bool = True,
+    ) -> "SheetQuery":
+        if type(id) is str:
+            id = [id]
+
+        query = f"WHERE {column_id} IN ({', '.join(id)})"
 
         return self._add_query(query, inplace)
 
@@ -157,7 +176,9 @@ class SheetQuery(Query):
         if type(columns) is list:
             columns = ",".join(columns)
 
-        query = [f"SELECT {columns} FROM {sheet.table_name}"]
+        query = [
+            f"SELECT row_number() OVER () - 1 AS row_num, {columns} FROM {sheet.table_name}"
+        ]
 
         return SheetQuery(query)
 
