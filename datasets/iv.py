@@ -92,15 +92,16 @@ class MIMIC_IV(Dataset):
 
     def _calc_query(self, only_count: bool = False) -> SheetQuery:
         query = SheetQuery.empty()
+        sheets = list(self.sheets.values())
 
         if only_count:
-            query = SheetQuery.count(self.sheets[0])
+            query = SheetQuery.count(sheets[0])
         else:
-            query = SheetQuery.select(self.sheets[0], self.columns)
+            query = SheetQuery.select(sheets[0], self.columns)
 
-        prev_sheet = self.sheets[0]
+        prev_sheet = sheets[0]
 
-        for sheet in self.sheets[1:]:
+        for sheet in sheets[1:]:
             query.join(prev_sheet, sheet)
 
         return query

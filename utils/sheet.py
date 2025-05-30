@@ -29,6 +29,7 @@ class Sheet:
         self.scaler = scaler
         self.transform = transform
         self.train = train
+        self.drop_table = drop_table
         self.force_insert = force_insert
 
         if table_fields is None:
@@ -40,7 +41,7 @@ class Sheet:
 
         self.source_csv_path = os.path.join(self.root, f"{table_name}.csv")
 
-        if drop_table:
+        if self.drop_table:
             self._drop_table()
 
         self._create_table()
@@ -73,6 +74,8 @@ class Sheet:
         csv_path = os.path.join(self.root, "transformed", f"{self.table_name}.csv")
 
         if os.path.exists(csv_path) and not self.force_insert:
+            if self.drop_table:
+                self._insert_data(csv_path)
             return
 
         df = pd.read_csv(
@@ -106,7 +109,7 @@ class SheetQuery(Query):
         inplace: bool = True,
     ) -> "SheetQuery":
         if type(query) is list:
-            query = " ".join(self.query)
+            query = " ".join(query)
 
         if inplace:
             self.query.append(query)
