@@ -17,7 +17,6 @@ class Sheet:
         scaler: list[Scaler] = None,
         table_fields: dict[str, str] = None,
         transform: Callable[[pd.DataFrame], pd.DataFrame] = None,
-        train: bool = True,
         drop_table: bool = True,
         force_insert: bool = False,
     ):
@@ -28,7 +27,6 @@ class Sheet:
         self.id_column = id_column
         self.scaler = scaler
         self.transform = transform
-        self.train = train
         self.drop_table = drop_table
         self.force_insert = force_insert
 
