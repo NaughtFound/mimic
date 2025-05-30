@@ -100,20 +100,53 @@ class SheetQuery(Query):
 
         self.query = query
 
+    def _add_query(
+        self,
+        query: Union[str, list[str]],
+        inplace: bool = True,
+    ) -> "SheetQuery":
+        if type(query) is list:
+            query = " ".join(self.query)
+
+        if inplace:
+            self.query.append(query)
+            return self
+
+        sq = SheetQuery(self.query.copy())
+        sq.query.append(query)
+
+        return sq
+
     def parse(self) -> str:
         final_query = " ".join(self.query) + ";"
 
         return final_query
 
-    def find_by_row_id(self, row_id: int) -> "SheetQuery":
-        self.query.append(f"LIMIT 1 OFFSET {row_id}")
+    def find_by_row_id(self, row_id: int, inplace: bool = True) -> "SheetQuery":
+        query = f"LIMIT 1 OFFSET {row_id}"
 
-        return self
+        return self._add_query(query, inplace)
 
-    def find_by_id(self, column_id: str, id: str) -> "SheetQuery":
-        self.query.append(f"WHERE {column_id}={id} LIMIT 1")
+    def find_by_id(self, column_id: str, id: str, inplace: bool = True) -> "SheetQuery":
+        query = f"WHERE {column_id}={id} LIMIT 1"
 
-        return self
+        return self._add_query(query, inplace)
+
+    def join(
+        self,
+        l_sheet: Sheet,
+        r_sheet: Sheet,
+        mode: Literal["left", "right", "natural"] = "natural",
+        inplace: bool = True,
+    ) -> "SheetQuery":
+        query = [f"{mode.upper()} JOIN {r_sheet.table_name}"]
+
+        if mode == "left" or mode == "right":
+            query.append(
+                f"ON {l_sheet.table_name}.{l_sheet.id_column}={r_sheet.table_name}.{r_sheet.id_column}"
+            )
+
+        return self._add_query(query, inplace)
 
     @staticmethod
     def select(
@@ -149,22 +182,6 @@ class SheetQuery(Query):
         )
 
         return SheetQuery(copy_query)
-
-    def join(
-        self,
-        l_sheet: Sheet,
-        r_sheet: Sheet,
-        mode: Literal["left", "right", "natural"] = "natural",
-    ) -> "SheetQuery":
-        if mode == "left" or mode == "right":
-            self.query.append(
-                f"{mode.upper()} JOIN {r_sheet.table_name} ON {l_sheet.table_name}.{l_sheet.id_column}={r_sheet.table_name}.{r_sheet.id_column}"
-            )
-
-        if mode == "natural":
-            self.query.append(f"{mode.upper()} JOIN {r_sheet.table_name}")
-
-        return self
 
     @staticmethod
     def empty() -> "SheetQuery":
