@@ -33,3 +33,17 @@ class DuckDB:
         df = self.conn.execute(query_str).fetch_df()
 
         return df
+
+    def fetch_one(self, query: Query) -> tuple:
+        query_str = query.parse()
+
+        res = self.conn.execute(query_str).fetchone()
+
+        return res
+
+    def fetch_all(self, query: Query) -> list:
+        query_str = query.parse()
+
+        res = self.conn.execute(query_str).fetchall()
+
+        return res

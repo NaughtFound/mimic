@@ -1,19 +1,25 @@
 import os
 from pathlib import Path
 from typing import Union
+import torch
 from torch.utils.data import Dataset
 from torchvision.datasets.utils import check_integrity
 from tqdm import tqdm
+import pandas as pd
 from utils import download_and_extract_archive
 from utils.env import Env
-from utils.sheet import Sheet
+from utils.sheet import Sheet, SheetQuery
+from utils.db import DuckDB
 
 
 class MIMIC_IV(Dataset):
     def __init__(
         self,
         root: Union[str, Path],
+        db: DuckDB,
         sheets: dict[str, Sheet],
+        column_id: str,
+        columns: list[str],
         download: bool = False,
     ):
         super().__init__()
@@ -21,8 +27,11 @@ class MIMIC_IV(Dataset):
         env = Env()
 
         self.root = root
+        self.db = db
         self.credentials = env.credentials
         self.sheets = sheets
+        self.column_id = column_id
+        self.columns = columns
 
         self.resources = []
         for f in env.iv_files:
@@ -38,6 +47,9 @@ class MIMIC_IV(Dataset):
             )
 
         self._load_data()
+
+        self.main_query = self._calc_query(only_count=False)
+        self.count_query = self._calc_query(only_count=True)
 
     def _check_exists(self) -> bool:
         return all(
@@ -77,3 +89,39 @@ class MIMIC_IV(Dataset):
 
         for k in tqdm(self.sheets, desc="Loading data"):
             self.sheets[k].load_csv()
+
+    def _calc_query(self, only_count: bool = False) -> SheetQuery:
+        query = SheetQuery.empty()
+
+        if only_count:
+            query = SheetQuery.count(self.sheets[0])
+        else:
+            query = SheetQuery.select(self.sheets[0], self.columns)
+
+        prev_sheet = self.sheets[0]
+
+        for sheet in self.sheets[1:]:
+            query.join(prev_sheet, sheet)
+
+        return query
+
+    def get_by_id(self, id: int) -> pd.DataFrame:
+        query = self.main_query.find_by_id(self.column_id, id, inplace=False)
+
+        df = self.db.fetch_df(query)
+
+        return df
+
+    def __len__(self) -> int:
+        count = self.db.fetch_one(self.count_query)[0]
+
+        return count
+
+    def __getitem__(self, idx: int):
+        query = self.main_query.find_by_row_id(idx, inplace=False)
+
+        df = self.db.fetch_df(query)
+
+        df_tensor = torch.from_numpy(df.to_numpy())
+
+        return df_tensor

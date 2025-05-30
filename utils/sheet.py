@@ -161,6 +161,12 @@ class SheetQuery(Query):
         return SheetQuery(query)
 
     @staticmethod
+    def count(sheet: Sheet) -> "SheetQuery":
+        query = [f"SELECT COUNT(*) FROM {sheet.table_name}"]
+
+        return SheetQuery(query)
+
+    @staticmethod
     def create_table(sheet: Sheet) -> "SheetQuery":
         columns_str = ", ".join(
             f"{col} {dtype}" for col, dtype in sheet.table_fields.items()
