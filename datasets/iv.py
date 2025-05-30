@@ -6,10 +6,10 @@ from torch.utils.data import Dataset
 from torchvision.datasets.utils import check_integrity
 from tqdm import tqdm
 import pandas as pd
-from utils import download_and_extract_archive
-from utils.env import Env
-from utils.sheet import Sheet, SheetQuery
-from utils.db import DuckDB
+from ..utils import download_and_extract_archive
+from ..utils.env import Env
+from ..utils.sheet import Sheet, SheetQuery
+from ..utils.db import DuckDB
 
 
 class MIMIC_IV(Dataset):
