@@ -119,6 +119,9 @@ class MIMIC_IV(Dataset):
         return count
 
     def __getitem__(self, idx: int):
+        return idx
+
+    def collate_fn(self, idx: list[int]):
         query = self.main_query.find_by_row_id(idx, inplace=False)
 
         df = self.db.fetch_df(query).drop(columns=["row_num"])
