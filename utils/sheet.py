@@ -1,15 +1,16 @@
 import os
 from typing import Callable, Literal, Union
-import duckdb
+
 import pandas as pd
-from utils.scaler import Scaler
+from .scaler import Scaler
+from .db import DuckDB, Query
 
 
 class Sheet:
     def __init__(
         self,
         root: str,
-        db_name: str,
+        db: DuckDB,
         table_name: str,
         columns: dict[str, str],
         id_column: str,
@@ -21,6 +22,7 @@ class Sheet:
         force_insert: bool = False,
     ):
         self.root = root
+        self.db = db
         self.table_name = table_name
         self.columns = columns
         self.id_column = id_column
@@ -37,9 +39,6 @@ class Sheet:
         os.makedirs(self.root, exist_ok=True)
 
         self.source_csv_path = os.path.join(self.root, f"{table_name}.csv")
-        self.db_path = os.path.join(self.root, db_name)
-
-        self.connection = duckdb.connect(database=self.db_path, read_only=False)
 
         if drop_table:
             self._drop_table()
@@ -47,15 +46,16 @@ class Sheet:
         self._create_table()
 
     def _create_table(self):
-        columns_str = ", ".join(
-            f"{col} {dtype}" for col, dtype in self.table_fields.items()
-        )
-        create_query = f"CREATE TABLE IF NOT EXISTS {self.table_name} ({columns_str});"
-        self.connection.execute(create_query)
+        query = SheetQuery.create_table(self)
+        self.db.exec(query)
 
     def _drop_table(self):
-        drop_query = f"DROP TABLE IF EXISTS {self.table_name};"
-        self.connection.execute(drop_query)
+        query = SheetQuery.drop_table(self)
+        self.db.exec(query)
+
+    def _insert_data(self, csv_path: str):
+        query = SheetQuery.copy_csv(self, csv_path)
+        self.db.exec(query)
 
     def _transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
         if self.transform is not None:
@@ -68,12 +68,6 @@ class Sheet:
             df = s.transform(df)
 
         return df
-
-    def _insert_data(self, csv_path: str):
-        insert_query = (
-            f"COPY {self.table_name} FROM '{csv_path}' (FORMAT CSV, HEADER TRUE);"
-        )
-        self.connection.execute(insert_query)
 
     def load_csv(self):
         csv_path = os.path.join(self.root, "transformed", f"{self.table_name}.csv")
@@ -98,15 +92,8 @@ class Sheet:
 
         self._insert_data(csv_path)
 
-    def close(self):
-        self.connection.close()
 
-    def exec(self, query: "SheetQuery"):
-        df = self.connection.execute(query.parse()).fetch_df()
-        return df
-
-
-class SheetQuery:
+class SheetQuery(Query):
     def __init__(self, query: Union[str, list[str]]):
         if type(query) is str:
             query = [query]
@@ -141,20 +128,44 @@ class SheetQuery:
         return SheetQuery(query)
 
     @staticmethod
+    def create_table(sheet: Sheet) -> "SheetQuery":
+        columns_str = ", ".join(
+            f"{col} {dtype}" for col, dtype in sheet.table_fields.items()
+        )
+        create_query = f"CREATE TABLE IF NOT EXISTS {sheet.table_name} ({columns_str})"
+
+        return SheetQuery(create_query)
+
+    @staticmethod
+    def drop_table(sheet: Sheet) -> "SheetQuery":
+        drop_query = f"DROP TABLE IF EXISTS {sheet.table_name}"
+
+        return SheetQuery(drop_query)
+
+    @staticmethod
+    def copy_csv(sheet: Sheet, csv_path: str) -> "SheetQuery":
+        copy_query = (
+            f"COPY {sheet.table_name} FROM '{csv_path}' (FORMAT CSV, HEADER TRUE)"
+        )
+
+        return SheetQuery(copy_query)
+
     def join(
+        self,
         l_sheet: Sheet,
         r_sheet: Sheet,
-        columns: Union[str, list[str]] = "*",
         mode: Literal["left", "right", "natural"] = "natural",
     ) -> "SheetQuery":
-        sq = SheetQuery.select(l_sheet, columns)
-
         if mode == "left" or mode == "right":
-            sq.query.append(
+            self.query.append(
                 f"{mode.upper()} JOIN {r_sheet.table_name} ON {l_sheet.table_name}.{l_sheet.id_column}={r_sheet.table_name}.{r_sheet.id_column}"
             )
 
         if mode == "natural":
-            sq.query.append(f"{mode.upper()} JOIN {r_sheet.table_name}")
+            self.query.append(f"{mode.upper()} JOIN {r_sheet.table_name}")
 
-        return sq
+        return self
+
+    @staticmethod
+    def empty() -> "SheetQuery":
+        return SheetQuery([])
