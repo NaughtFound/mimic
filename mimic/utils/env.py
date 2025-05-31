@@ -169,6 +169,36 @@ class Env:
             },
         ]
 
+        self.cxr_version = os.environ.get("CXR_VERSION", "2.1.0")
+        self.cxr_url = f"https://physionet.org/mimic-cxr-jpg/{self.cxr_version}"
+        self.cxr_files = [
+            {
+                "name": "chexpert",
+                "url": f"{self.cxr_url}/mimic-cxr-2.0.0-chexpert.csv.gz",
+                "md5": os.environ.get("CXR_chexpert.csv.gz_MD5"),
+            },
+            {
+                "name": "metadata",
+                "url": f"{self.cxr_url}/mimic-cxr-2.0.0-metadata.csv.gz",
+                "md5": os.environ.get("CXR_metadata.csv.gz_MD5"),
+            },
+            {
+                "name": "negbio",
+                "url": f"{self.cxr_url}/mimic-cxr-2.0.0-negbio.csv.gz",
+                "md5": os.environ.get("CXR_negbio.csv.gz_MD5"),
+            },
+            {
+                "name": "split",
+                "url": f"{self.cxr_url}/mimic-cxr-2.0.0-split.csv.gz",
+                "md5": os.environ.get("CXR_split.csv.gz_MD5"),
+            },
+            {
+                "name": "test-set-labeled",
+                "url": f"{self.cxr_url}/mimic-cxr-2.1.0-test-set-labeled.csv.gz",
+                "md5": os.environ.get("CXR_test-set-labeled.csv.gz_MD5"),
+            },
+        ]
+
     @staticmethod
     def load() -> None:
         load_dotenv()

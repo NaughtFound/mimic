@@ -52,8 +52,6 @@ class MIMIC_IV(Dataset, Downloadable):
         return self.resources
 
     def _load_data(self):
-        self.data = {}
-
         for k in tqdm(self.sheets, desc="Loading data"):
             self.sheets[k].load_csv()
 
