@@ -16,6 +16,7 @@ class DuckDB:
         root: str,
         db_name: str,
     ):
+        os.makedirs(root, exist_ok=True)
         db_path = os.path.join(root, db_name)
         self.conn = duckdb.connect(database=db_path, read_only=False)
 
