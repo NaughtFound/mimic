@@ -106,7 +106,7 @@ class MIMIC_IV(Dataset):
 
         return query
 
-    def get_by_id(self, id: int) -> pd.DataFrame:
+    def get_by_id(self, id: list[str]) -> pd.DataFrame:
         query = self.main_query.find_by_id(self.column_id, id, inplace=False)
 
         df = self.db.fetch_df(query).drop(columns=["row_num"])
