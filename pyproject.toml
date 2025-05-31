@@ -1,0 +1,14 @@
+[project]
+name = "mimic"
+version = "1.0.0"
+description = ""
+authors = [{ name = "Mohammad Ghazanfari", email = "mgh.5225@gmail.com" }]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = []
+
+
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
