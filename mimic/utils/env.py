@@ -170,7 +170,7 @@ class Env:
         ]
 
         self.cxr_version = os.environ.get("CXR_VERSION", "2.1.0")
-        self.cxr_url = f"https://physionet.org/mimic-cxr-jpg/{self.cxr_version}"
+        self.cxr_url = f"https://physionet.org/files/mimic-cxr-jpg/{self.cxr_version}"
         self.cxr_files = [
             {
                 "name": "chexpert",
