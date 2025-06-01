@@ -11,6 +11,18 @@ from .downloadable import Downloadable
 
 
 def transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
+    df["image_path"] = (
+        "p"
+        + df["subject_id"].str[:2]
+        + "/p"
+        + df["subject_id"]
+        + "/s"
+        + df["study_id"]
+        + "/"
+        + df["dicom_id"]
+        + ".jpg"
+    )
+
     return df
 
 
@@ -62,13 +74,14 @@ class MIMIC_CXR(Dataset, Downloadable):
             columns={
                 "dicom_id": "string",
                 "study_id": "string",
-                "subject_id": "int",
+                "subject_id": "string",
                 "split": "string",
             },
             table_fields={
                 "image_path": "string",
+                "dicom_id": "string",
                 "study_id": "string",
-                "subject_id": "int",
+                "subject_id": "string",
                 "split": "string",
             },
             id_column="dicom_id",
@@ -84,20 +97,20 @@ class MIMIC_CXR(Dataset, Downloadable):
             columns={
                 "subject_id": "string",
                 "study_id": "string",
-                "Atelectasis": "string",
-                "Cardiomegaly": "string",
-                "Consolidation": "string",
-                "Edema": "string",
-                "Enlarged Cardiomediastinum": "string",
-                "Fracture": "string",
-                "Lung Lesion": "string",
-                "Lung Opacity": "string",
-                "Pleural Effusion": "string",
-                "Pneumonia": "string",
-                "Pneumothorax": "string",
-                "Pleural Other": "string",
-                "Support Devices": "string",
-                "No Finding": "string",
+                "Atelectasis": "float",
+                "Cardiomegaly": "float",
+                "Consolidation": "float",
+                "Edema": "float",
+                "Enlarged Cardiomediastinum": "float",
+                "Fracture": "float",
+                "Lung Lesion": "float",
+                "Lung Opacity": "float",
+                "Pleural Effusion": "float",
+                "Pneumonia": "float",
+                "Pneumothorax": "float",
+                "Pleural Other": "float",
+                "Support Devices": "float",
+                "No Finding": "float",
             },
             table_fields=self.study_table_fields,
             id_column="study_id",
