@@ -1,13 +1,11 @@
 from pathlib import Path
 from typing import Any, Callable, Literal, Union
 import torch
-from torch.utils.data import Dataset
-from tqdm import tqdm
 import pandas as pd
 from mimic.utils.env import Env
-from mimic.utils.sheet import Sheet, SheetQuery
+from mimic.utils.sheet import Sheet
 from mimic.utils.db import DuckDB
-from .downloadable import Downloadable
+from .base import BaseDataset
 
 
 def transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
@@ -26,11 +24,12 @@ def transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-class MIMIC_CXR(Dataset, Downloadable):
+class MIMIC_CXR(BaseDataset):
     def __init__(
         self,
         root: Union[str, Path],
         db: DuckDB,
+        columns: Union[str, list[str]],
         study: Literal["chexpert", "negbio"] = "chexpert",
         study_transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
         study_table_fields: dict[str, str] = None,
@@ -40,32 +39,28 @@ class MIMIC_CXR(Dataset, Downloadable):
     ):
         env = Env()
 
-        super().__init__(root=root, credentials=env.credentials)
-
         self.root = root
         self.db = db
         self.column_id = "study_id"
-        self.transform = transform
+        self.columns = columns
         self.study = study
         self.study_transform = study_transform
         self.study_table_fields = study_table_fields
+        self.transform = transform
         self.kwargs = kwargs
-
         self.sheets = self._create_sheets(env.cxr_files)
 
-        self.resources = []
-        for k in self.sheets.keys():
-            self.resources.append(env.cxr_files[k])
+        super().__init__(
+            root=self.root,
+            db=self.db,
+            column_id=self.column_id,
+            columns=self.columns,
+            sheets=self.sheets,
+            download=download,
+        )
 
-        if download:
-            self._download()
-
-        if not self._check_exists():
-            raise RuntimeError(
-                "Dataset not found. You can use download=True to download it"
-            )
-
-        self._load_data()
+    def _files(self):
+        return Env().cxr_files
 
     def _create_sheets(self, cxr_files: dict[str, Any]) -> dict[str, Sheet]:
         split_sheet = Sheet(
@@ -125,9 +120,11 @@ class MIMIC_CXR(Dataset, Downloadable):
             self.study: study_sheet,
         }
 
-    def _get_resources(self):
-        return self.resources
+    def collate_fn(self, idx: list[int]):
+        query = self.main_query.find_by_row_id(idx, inplace=False)
 
-    def _load_data(self):
-        for k in tqdm(self.sheets, desc="Loading data"):
-            self.sheets[k].load_csv()
+        df = self.db.fetch_df(query).drop(columns=["row_num"])
+
+        df_tensor = torch.from_numpy(df.to_numpy())
+
+        return df_tensor
