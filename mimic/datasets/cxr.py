@@ -35,6 +35,7 @@ class MIMIC_CXR(BaseDataset):
         study_table_fields: dict[str, str] = None,
         transform: Callable = None,
         download: bool = False,
+        mode: Literal["train", "test", "validate"] = "train",
         **kwargs,
     ):
         env = Env()
@@ -58,6 +59,11 @@ class MIMIC_CXR(BaseDataset):
             sheets=self.sheets,
             download=download,
         )
+
+        split_condition = f"split={mode}"
+
+        self.main_query.where(split_condition, inplace=True)
+        self.count_query.where(split_condition, inplace=True)
 
     def _files(self):
         return Env().cxr_files
