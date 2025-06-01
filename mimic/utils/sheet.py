@@ -12,6 +12,7 @@ class Sheet:
         root: str,
         db: DuckDB,
         table_name: str,
+        file_name: str,
         columns: dict[str, str],
         id_column: str,
         scaler: list[Scaler] = None,
@@ -23,6 +24,7 @@ class Sheet:
         self.root = root
         self.db = db
         self.table_name = table_name
+        self.file_name = file_name
         self.columns = columns
         self.id_column = id_column
         self.scaler = scaler
@@ -37,7 +39,7 @@ class Sheet:
 
         os.makedirs(self.root, exist_ok=True)
 
-        self.source_csv_path = os.path.join(self.root, f"{table_name}.csv")
+        self.source_csv_path = os.path.join(self.root, self.file_name)
 
         if self.drop_table:
             self._drop_table()
@@ -69,7 +71,7 @@ class Sheet:
         return df
 
     def load_csv(self):
-        csv_path = os.path.join(self.root, "transformed", f"{self.table_name}.csv")
+        csv_path = os.path.join(self.root, "transformed", self.file_name)
 
         if os.path.exists(csv_path) and not self.force_insert:
             if self.drop_table:

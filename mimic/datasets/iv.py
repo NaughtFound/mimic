@@ -31,9 +31,8 @@ class MIMIC_IV(Dataset, Downloadable):
         self.columns = columns
 
         self.resources = []
-        for f in env.iv_files:
-            if f["name"] in list(sheets.keys()):
-                self.resources.append(f)
+        for k in sheets.keys():
+            self.resources.append(env.iv_files[k])
 
         if download:
             self._download()

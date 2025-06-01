@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, Literal, Union
+from typing import Any, Callable, Literal, Union
 import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
@@ -39,12 +39,11 @@ class MIMIC_CXR(Dataset, Downloadable):
         self.study_table_fields = study_table_fields
         self.kwargs = kwargs
 
-        self.resources = []
-        for f in env.cxr_files:
-            if f["name"] in ["split", self.study]:
-                self.resources.append(f)
+        self.sheets = self._create_sheets(env.cxr_files)
 
-        self.sheets = self._create_sheets()
+        self.resources = []
+        for k in self.sheets.keys():
+            self.resources.append(env.cxr_files[k])
 
         if download:
             self._download()
@@ -56,12 +55,9 @@ class MIMIC_CXR(Dataset, Downloadable):
 
         self._load_data()
 
-        self.main_query = self._calc_query(only_count=False)
-        self.count_query = self._calc_query(only_count=True)
-
-    def _create_sheets(self) -> dict[str, Sheet]:
+    def _create_sheets(self, cxr_files: dict[str, Any]) -> dict[str, Sheet]:
         split_sheet = Sheet(
-            root=self.root,
+            root=self.raw_folder,
             db=self.db,
             columns={
                 "dicom_id": "string",
@@ -77,34 +73,36 @@ class MIMIC_CXR(Dataset, Downloadable):
             },
             id_column="dicom_id",
             table_name="split",
+            file_name=cxr_files["split"]["name"],
             transform=transform_split,
             **self.kwargs,
         )
 
         study_sheet = Sheet(
-            root=self.root,
+            root=self.raw_folder,
             db=self.db,
             columns={
                 "subject_id": "string",
                 "study_id": "string",
-                "Atelectasis": "int",
-                "Cardiomegaly": "int",
-                "Consolidation": "int",
-                "Edema": "int",
-                "Enlarged Cardiomediastinum": "int",
-                "Fracture": "int",
-                "Lung Lesion": "int",
-                "Lung Opacity": "int",
-                "Pleural Effusion": "int",
-                "Pneumonia": "int",
-                "Pneumothorax": "int",
-                "Pleural Other": "int",
-                "Support Devices": "int",
-                "No Finding": "int",
+                "Atelectasis": "string",
+                "Cardiomegaly": "string",
+                "Consolidation": "string",
+                "Edema": "string",
+                "Enlarged Cardiomediastinum": "string",
+                "Fracture": "string",
+                "Lung Lesion": "string",
+                "Lung Opacity": "string",
+                "Pleural Effusion": "string",
+                "Pneumonia": "string",
+                "Pneumothorax": "string",
+                "Pleural Other": "string",
+                "Support Devices": "string",
+                "No Finding": "string",
             },
             table_fields=self.study_table_fields,
             id_column="study_id",
             table_name="study",
+            file_name=cxr_files[self.study]["name"],
             transform=self.study_transform,
             **self.kwargs,
         )
@@ -120,43 +118,3 @@ class MIMIC_CXR(Dataset, Downloadable):
     def _load_data(self):
         for k in tqdm(self.sheets, desc="Loading data"):
             self.sheets[k].load_csv()
-
-    def _calc_query(self, only_count: bool = False) -> SheetQuery:
-        query = SheetQuery.empty()
-        sheets = list(self.sheets.values())
-
-        if only_count:
-            query = SheetQuery.count(sheets[0])
-        else:
-            query = SheetQuery.select(sheets[0], self.columns)
-
-        prev_sheet = sheets[0]
-
-        for sheet in sheets[1:]:
-            query.join(prev_sheet, sheet)
-
-        return query
-
-    def get_by_id(self, id: list[str]) -> pd.DataFrame:
-        query = self.main_query.find_by_id(self.column_id, id, inplace=False)
-
-        df = self.db.fetch_df(query).drop(columns=["row_num"])
-
-        return df
-
-    def __len__(self) -> int:
-        count = self.db.fetch_one(self.count_query)[0]
-
-        return count
-
-    def __getitem__(self, idx: int):
-        return idx
-
-    def collate_fn(self, idx: list[int]):
-        query = self.main_query.find_by_row_id(idx, inplace=False)
-
-        df = self.db.fetch_df(query).drop(columns=["row_num"])
-
-        df_tensor = torch.from_numpy(df.to_numpy())
-
-        return df_tensor
