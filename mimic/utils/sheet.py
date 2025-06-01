@@ -174,7 +174,7 @@ class SheetQuery(Query):
         columns: Union[str, list[str]] = "*",
     ) -> "SheetQuery":
         if type(columns) is list:
-            columns = ",".join(columns)
+            columns = ",".join(map(lambda col: f'"{col}"', columns))
 
         query = [
             f"SELECT row_number() OVER () - 1 AS row_num, {columns} FROM {sheet.table_name}"
@@ -191,7 +191,7 @@ class SheetQuery(Query):
     @staticmethod
     def create_table(sheet: Sheet) -> "SheetQuery":
         columns_str = ", ".join(
-            f"{col} {dtype}" for col, dtype in sheet.table_fields.items()
+            f'"{col}" {dtype}' for col, dtype in sheet.table_fields.items()
         )
         create_query = f"CREATE TABLE IF NOT EXISTS {sheet.table_name} ({columns_str})"
 
