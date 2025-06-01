@@ -125,6 +125,21 @@ class SheetQuery(Query):
 
         return final_query
 
+    def where(
+        self,
+        condition: str,
+        operator: Literal["and", "or"] = "and",
+        inplace: bool = True,
+    ) -> "SheetQuery":
+        contains_where = any("where" in s.lower() for s in self.query)
+
+        if contains_where:
+            query = f"{operator.upper()} {condition}"
+        else:
+            query = f"WHERE {condition}"
+
+        return self._add_query(query, inplace)
+
     def find_by_row_id(
         self,
         row_id: Union[int, list[int]],
@@ -133,13 +148,14 @@ class SheetQuery(Query):
         if type(row_id) is int:
             row_id = [row_id]
 
-        query = f"SELECT * FROM ({' '.join(self.query)}) WHERE row_num IN ({','.join(map(str, row_id))})"
+        query = f"SELECT * FROM ({' '.join(self.query)})"
+        condition = f"row_num IN ({','.join(map(str, row_id))})"
 
         if inplace:
             self.query = [query]
-            return self
+            return self.where(condition, inplace)
         else:
-            return SheetQuery(query)
+            return SheetQuery(query).where(condition, inplace)
 
     def find_by_id(
         self,
@@ -150,19 +166,9 @@ class SheetQuery(Query):
         if type(id) is str:
             id = [id]
 
-        query = f"WHERE {column_id} IN ({','.join(id)})"
+        condition = f"{column_id} IN ({','.join(id)})"
 
-        return self._add_query(query, inplace)
-
-    def where(
-        self,
-        column: str,
-        value: str,
-        inplace: bool = True,
-    ) -> "SheetQuery":
-        query = f"WHERE {column}='{value}'"
-
-        return self._add_query(query, inplace)
+        return self.where(condition, inplace)
 
     def join(
         self,
