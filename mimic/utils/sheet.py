@@ -91,7 +91,7 @@ class Sheet:
 
         os.makedirs(os.path.join(self.root, "transformed"), exist_ok=True)
 
-        df.to_csv(csv_path, index=False)
+        df[self.table_fields.keys()].to_csv(csv_path, index=False)
 
         self._insert_data(csv_path)
 
@@ -133,7 +133,7 @@ class SheetQuery(Query):
         if type(row_id) is int:
             row_id = [row_id]
 
-        query = f"SELECT * FROM ({' '.join(self.query)}) WHERE row_num IN ({', '.join(map(str, row_id))})"
+        query = f"SELECT * FROM ({' '.join(self.query)}) WHERE row_num IN ({','.join(map(str, row_id))})"
 
         if inplace:
             self.query = [query]
@@ -150,7 +150,7 @@ class SheetQuery(Query):
         if type(id) is str:
             id = [id]
 
-        query = f"WHERE {column_id} IN ({', '.join(id)})"
+        query = f"WHERE {column_id} IN ({','.join(id)})"
 
         return self._add_query(query, inplace)
 
@@ -192,7 +192,7 @@ class SheetQuery(Query):
 
     @staticmethod
     def create_table(sheet: Sheet) -> "SheetQuery":
-        columns_str = ", ".join(
+        columns_str = ",".join(
             f'"{col}" {dtype}' for col, dtype in sheet.table_fields.items()
         )
         create_query = f"CREATE TABLE IF NOT EXISTS {sheet.table_name} ({columns_str})"
