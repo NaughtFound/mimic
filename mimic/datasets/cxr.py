@@ -10,7 +10,7 @@ from mimic.utils.db import DuckDB
 from .downloadable import Downloadable
 
 
-def transform_split_df(df: pd.DataFrame) -> pd.DataFrame:
+def transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
@@ -20,7 +20,7 @@ class MIMIC_CXR(Dataset, Downloadable):
         root: Union[str, Path],
         db: DuckDB,
         study: Literal["chexpert", "negbio"] = "chexpert",
-        study_transform: Callable[[pd.DataFrame], pd.DataFrame] = None,
+        study_transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
         study_table_fields: dict[str, str] = None,
         transform: Callable = None,
         download: bool = False,
@@ -77,7 +77,7 @@ class MIMIC_CXR(Dataset, Downloadable):
             },
             id_column="dicom_id",
             table_name="split",
-            transform=transform_split_df,
+            transform=transform_split,
             **self.kwargs,
         )
 

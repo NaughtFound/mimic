@@ -16,7 +16,7 @@ class Sheet:
         id_column: str,
         scaler: list[Scaler] = None,
         table_fields: dict[str, str] = None,
-        transform: Callable[[pd.DataFrame], pd.DataFrame] = None,
+        transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
         drop_table: bool = True,
         force_insert: bool = False,
     ):
@@ -58,7 +58,7 @@ class Sheet:
 
     def _transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
         if self.transform is not None:
-            df = self.transform(df)
+            df = self.transform(self.db, df)
 
         if self.scaler is None:
             return df
