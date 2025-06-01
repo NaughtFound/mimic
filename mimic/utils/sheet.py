@@ -154,6 +154,16 @@ class SheetQuery(Query):
 
         return self._add_query(query, inplace)
 
+    def where(
+        self,
+        column: str,
+        value: str,
+        inplace: bool = True,
+    ) -> "SheetQuery":
+        query = f"WHERE {column}='{value}'"
+
+        return self._add_query(query, inplace)
+
     def join(
         self,
         l_sheet: Sheet,
