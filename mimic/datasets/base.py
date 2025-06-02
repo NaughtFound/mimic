@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 from mimic.utils import download_and_extract_archive
 from mimic.utils.db import DuckDB
 from mimic.utils.env import Env
-from mimic.utils.sheet import Sheet, SheetQuery
+from mimic.utils.sheet import Sheet, SheetQuery, SheetJoinCondition
 
 
 class BaseDataset(Dataset, ABC):
@@ -21,6 +21,7 @@ class BaseDataset(Dataset, ABC):
         column_id: str,
         columns: Union[str, list[str]],
         sheets: dict[str, Sheet],
+        join_conditions: list[SheetJoinCondition],
         download: bool = False,
     ):
         super().__init__()
@@ -32,6 +33,7 @@ class BaseDataset(Dataset, ABC):
         self.column_id = column_id
         self.columns = columns
         self.sheets = sheets
+        self.join_conditions = join_conditions
         self.credentials = env.credentials
 
         self.resources = []
@@ -101,10 +103,8 @@ class BaseDataset(Dataset, ABC):
         else:
             query = SheetQuery.select(sheets[0], self.columns)
 
-        prev_sheet = sheets[0]
-
-        for sheet in sheets[1:]:
-            query.join(prev_sheet, sheet)
+        for condition in self.join_conditions:
+            query.join(condition)
 
         return query
 

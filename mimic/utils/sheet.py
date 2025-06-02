@@ -96,6 +96,34 @@ class Sheet:
         self._insert_data(csv_path)
 
 
+class SheetJoinCondition:
+    def __init__(
+        self,
+        l_sheet: Sheet,
+        r_sheet: Sheet,
+        columns: tuple[str] = None,
+        mode: Literal["left", "right", "natural"] = "natural",
+    ):
+        if columns is None:
+            columns = (l_sheet.id_column, r_sheet.id_column)
+
+        self.l_sheet = l_sheet
+        self.r_sheet = r_sheet
+        self.l_column, self.r_column = columns
+        self.mode = mode
+
+    def prase(self):
+        return f"{self.l_sheet.table_name}.{self.l_column}={self.r_sheet.table_name}.{self.r_column}"
+
+    @property
+    def _mode(self):
+        return self.mode.upper()
+
+    @property
+    def _table_name(self):
+        return self.r_sheet.table_name
+
+
 class SheetQuery(Query):
     def __init__(self, query: Union[str, list[str]]):
         if type(query) is str:
@@ -172,17 +200,13 @@ class SheetQuery(Query):
 
     def join(
         self,
-        l_sheet: Sheet,
-        r_sheet: Sheet,
-        mode: Literal["left", "right", "natural"] = "natural",
+        condition: SheetJoinCondition,
         inplace: bool = True,
     ) -> "SheetQuery":
-        query = [f"{mode.upper()} JOIN {r_sheet.table_name}"]
+        query = [f"{condition._mode} JOIN {condition._table_name}"]
 
-        if mode == "left" or mode == "right":
-            query.append(
-                f"ON {l_sheet.table_name}.{l_sheet.id_column}={r_sheet.table_name}.{r_sheet.id_column}"
-            )
+        if condition.mode in ["left", "right"]:
+            query.append(f"ON {condition.prase()}")
 
         return self._add_query(query, inplace)
 

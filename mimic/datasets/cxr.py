@@ -3,7 +3,7 @@ from typing import Any, Callable, Literal, Union
 import torch
 import pandas as pd
 from mimic.utils.env import Env
-from mimic.utils.sheet import Sheet
+from mimic.utils.sheet import Sheet, SheetJoinCondition
 from mimic.utils.db import DuckDB
 from .base import BaseDataset
 
@@ -57,6 +57,14 @@ class MIMIC_CXR(BaseDataset):
             column_id=self.column_id,
             columns=self.columns,
             sheets=self.sheets,
+            join_conditions=[
+                SheetJoinCondition(
+                    l_sheet=self.sheets["split"],
+                    r_sheet=self.sheets[self.study],
+                    columns=("study_id", "study_id"),
+                    mode="left",
+                )
+            ],
             download=download,
         )
 
