@@ -60,7 +60,7 @@ class MIMIC_CXR(BaseDataset):
             download=download,
         )
 
-        split_condition = f"split={mode}"
+        split_condition = f"split='{mode}'"
 
         self.main_query.where(split_condition, inplace=True)
         self.count_query.where(split_condition, inplace=True)
