@@ -115,6 +115,8 @@ class MIMIC_CXR(BaseDataset):
         return query
 
     def _download_images(self):
+        env = Env()
+
         count_query = self._calc_query(
             only_count=True,
             downloaded_only=False,
@@ -139,11 +141,26 @@ class MIMIC_CXR(BaseDataset):
             )
             rows = self.db.fetch_df(query)["dicom_id"].to_list()
 
+            if len(rows) == 0:
+                continue
+
             self.db.exec(
                 SheetQuery.update(
                     self.sheets["split"],
                     {"download": True},
                 ).find_by_id("dicom_id", rows)
+            )
+
+        files = self.db.fetch_df(self.main_query)["image_path"].to_list()
+
+        for file in files:
+            file_url = f"{env.cxr_url}/{file}"
+            file_root = os.path.dirname(file)
+
+            download_url(
+                url=file_url,
+                root=os.path.join(self.raw_folder, file_root),
+                credentials=env.credentials,
             )
 
     def _files(self):
