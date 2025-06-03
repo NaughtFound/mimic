@@ -243,7 +243,7 @@ class SheetQuery(Query):
 
         else:
             for column in columns:
-                count.append(f"COUNT({column}) AS {column}")
+                count.append(f'COUNT("{column}") AS "{column}"')
 
         query = [f"SELECT {','.join(count)} FROM {sheet.table_name}"]
 
