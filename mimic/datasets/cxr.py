@@ -1,7 +1,9 @@
+import os
 from pathlib import Path
 from typing import Any, Callable, Literal, Union
 import torch
 import pandas as pd
+from PIL import Image
 from mimic.utils.env import Env
 from mimic.utils.sheet import Sheet, SheetJoinCondition
 from mimic.utils.db import DuckDB
@@ -134,11 +136,26 @@ class MIMIC_CXR(BaseDataset):
             self.study: study_sheet,
         }
 
+    def _load_image(self, img_path: str):
+        image = Image.open(img_path)
+
+        if image.mode not in ["RGB", "L"]:
+            image = image.convert("RGB")
+
+        return image
+
     def collate_fn(self, idx: list[int]):
         query = self.main_query.find_by_row_id(idx, inplace=False)
-
         df = self.db.fetch_df(query).drop(columns=["row_num"])
 
-        df_tensor = torch.from_numpy(df.to_numpy())
+        image_paths = os.path.join(self.raw_folder, "files/") + df["image_path"]
 
-        return df_tensor
+        images = [self._load_image(img_path) for img_path in image_paths]
+
+        if self.transform is not None:
+            images = [self.transform(img) for img in images]
+
+        df_tensor = torch.from_numpy(df.drop(columns=["image_path"]).to_numpy())
+        image_tensors = torch.stack([torch.tensor(img) for img in images])
+
+        return image_tensors, df_tensor
