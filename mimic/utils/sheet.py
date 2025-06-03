@@ -232,8 +232,20 @@ class SheetQuery(Query):
         return SheetQuery(query)
 
     @staticmethod
-    def count(sheet: Sheet) -> "SheetQuery":
-        query = [f"SELECT COUNT(*) FROM {sheet.table_name}"]
+    def count(
+        sheet: Sheet,
+        columns: Union[Literal["*"], list[str]] = "*",
+    ) -> "SheetQuery":
+        count = []
+
+        if columns == "*":
+            count.append("COUNT(*)")
+
+        else:
+            for column in columns:
+                count.append(f"COUNT({column}) AS {column}")
+
+        query = [f"SELECT {','.join(count)} FROM {sheet.table_name}"]
 
         return SheetQuery(query)
 
