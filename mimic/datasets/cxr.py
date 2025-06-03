@@ -4,6 +4,7 @@ from typing import Any, Callable, Literal, Union
 import torch
 import pandas as pd
 from PIL import Image
+from mimic.utils import download_url, check_integrity
 from mimic.utils.env import Env
 from mimic.utils.sheet import Sheet, SheetJoinCondition
 from mimic.utils.db import DuckDB
@@ -12,7 +13,7 @@ from .base import BaseDataset
 
 def transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
     df["image_path"] = (
-        "p"
+        "files/p"
         + df["subject_id"].str[:2]
         + "/p"
         + df["subject_id"]
@@ -23,6 +24,8 @@ def transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
         + ".jpg"
     )
 
+    df["download"] = False
+
     return df
 
 
@@ -32,6 +35,7 @@ class MIMIC_CXR(BaseDataset):
         root: Union[str, Path],
         db: DuckDB,
         columns: Union[str, list[str]],
+        label_proportions: dict[str, float],
         study: Literal["chexpert", "negbio"] = "chexpert",
         study_transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
         study_table_fields: dict[str, str] = None,
@@ -46,6 +50,7 @@ class MIMIC_CXR(BaseDataset):
         self.db = db
         self.column_id = "study_id"
         self.columns = columns
+        self.label_proportions = label_proportions
         self.study = study
         self.study_transform = study_transform
         self.study_table_fields = study_table_fields
@@ -71,9 +76,33 @@ class MIMIC_CXR(BaseDataset):
         )
 
         split_condition = f"split='{mode}'"
+        download_condition = "download=True"
 
-        self.main_query.where(split_condition, inplace=True)
-        self.count_query.where(split_condition, inplace=True)
+        self.main_query.where([split_condition, download_condition], inplace=True)
+        self.count_query.where([split_condition, download_condition], inplace=True)
+
+        if download:
+            self._download_images()
+
+        if not self._check_images_exists():
+            raise RuntimeError(
+                "images not found. You can use download=True to download them"
+            )
+
+    def _list_downloadable_files(self) -> list[str]:
+        df = self.raw_folder + self.db.fetch_df(self.main_query)["image_path"]
+        return df.to_list()
+
+    def _check_images_exists(self):
+        files = self._list_downloadable_files()
+
+        if len(files) == 0:
+            return False
+
+        return all(check_integrity(os.path.join(self.raw_folder, f)) for f in files)
+
+    def _download_images(self):
+        pass
 
     def _files(self):
         return Env().cxr_files
@@ -94,6 +123,7 @@ class MIMIC_CXR(BaseDataset):
                 "study_id": "string",
                 "subject_id": "string",
                 "split": "string",
+                "download": "boolean",
             },
             id_column="dicom_id",
             table_name="split",
@@ -146,7 +176,7 @@ class MIMIC_CXR(BaseDataset):
 
     def collate_fn(self, idx: list[int]):
         query = self.main_query.find_by_row_id(idx, inplace=False)
-        df = self.db.fetch_df(query).drop(columns=["row_num"])
+        df = self.db.fetch_df(query).drop(columns=["row_num", "download"])
 
         image_paths = os.path.join(self.raw_folder, "files/") + df["image_path"]
 
