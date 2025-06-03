@@ -159,7 +159,7 @@ class SheetQuery(Query):
         operator: Literal["and", "or"] = "and",
         inplace: bool = True,
     ) -> "SheetQuery":
-        contains_where = any("where" in s.lower() for s in self.query)
+        contains_where = any(s.lower().startswith("where") for s in self.query)
 
         if contains_where:
             query = f"{operator.upper()} {condition}"
@@ -181,9 +181,9 @@ class SheetQuery(Query):
 
         if inplace:
             self.query = [query]
-            return self.where(condition, inplace)
+            return self.where(condition, inplace=inplace)
         else:
-            return SheetQuery(query).where(condition, inplace)
+            return SheetQuery(query).where(condition, inplace=inplace)
 
     def find_by_id(
         self,
@@ -196,7 +196,7 @@ class SheetQuery(Query):
 
         condition = f"{column_id} IN ({','.join(id)})"
 
-        return self.where(condition, inplace)
+        return self.where(condition, inplace=inplace)
 
     def join(
         self,
