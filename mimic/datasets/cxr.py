@@ -6,7 +6,7 @@ import pandas as pd
 from PIL import Image
 from mimic.utils import download_url, check_integrity
 from mimic.utils.env import Env
-from mimic.utils.sheet import Sheet, SheetJoinCondition
+from mimic.utils.sheet import Sheet, SheetQuery, SheetJoinCondition
 from mimic.utils.db import DuckDB
 from .base import BaseDataset
 
@@ -76,17 +76,16 @@ class MIMIC_CXR(BaseDataset):
         )
 
         split_condition = f"split='{mode}'"
-        download_condition = "download=True"
 
-        self.main_query.where([split_condition, download_condition], inplace=True)
-        self.count_query.where([split_condition, download_condition], inplace=True)
+        self.main_query.where(split_condition, inplace=True)
+        self.count_query.where(split_condition, inplace=True)
 
         if download:
             self._download_images()
 
         if not self._check_images_exists():
             raise RuntimeError(
-                "images not found. You can use download=True to download them"
+                "Images not found. You can use download=True to download them"
             )
 
     def _list_downloadable_files(self) -> list[str]:
@@ -101,8 +100,51 @@ class MIMIC_CXR(BaseDataset):
 
         return all(check_integrity(os.path.join(self.raw_folder, f)) for f in files)
 
+    def _calc_query(
+        self,
+        only_count: bool = False,
+        downloaded_only: bool = True,
+        columns: list[str] = None,
+    ):
+        query = super()._calc_query(only_count, columns)
+
+        if downloaded_only:
+            download_condition = "download=True"
+            query.where(download_condition, inplace=True)
+
+        return query
+
     def _download_images(self):
-        pass
+        count_query = self._calc_query(
+            only_count=True,
+            downloaded_only=False,
+            columns=self.label_proportions.keys(),
+        )
+        download_query = self._calc_query(
+            only_count=False,
+            downloaded_only=False,
+        )
+
+        total = self.db.fetch_df(count_query)
+        proportion = pd.Series(self.label_proportions)
+        total_download = total.mul(proportion, axis=1).iloc[0].to_dict()
+
+        for k in total_download:
+            query = download_query.where(
+                f'"{k}" IS NOT NULL',
+                inplace=False,
+            ).limit(
+                int(total_download[k]),
+                inplace=False,
+            )
+            rows = self.db.fetch_df(query)["dicom_id"].to_list()
+
+            self.db.exec(
+                SheetQuery.update(
+                    self.sheets["split"],
+                    {"download": True},
+                ).find_by_id("dicom_id", rows)
+            )
 
     def _files(self):
         return Env().cxr_files

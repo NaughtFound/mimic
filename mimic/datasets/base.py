@@ -94,14 +94,18 @@ class BaseDataset(Dataset, ABC):
         for k in tqdm(self.sheets, desc="Loading data"):
             self.sheets[k].load_csv()
 
-    def _calc_query(self, only_count: bool = False) -> SheetQuery:
+    def _calc_query(
+        self,
+        only_count: bool = False,
+        columns: list[str] = None,
+    ) -> SheetQuery:
         query = SheetQuery.empty()
         sheets = list(self.sheets.values())
 
         if only_count:
-            query = SheetQuery.count(sheets[0])
+            query = SheetQuery.count(sheets[0], columns=columns or "*")
         else:
-            query = SheetQuery.select(sheets[0], self.columns)
+            query = SheetQuery.select(sheets[0], columns=columns or self.columns)
 
         for condition in self.join_conditions:
             query.join(condition)
