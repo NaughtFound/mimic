@@ -156,10 +156,14 @@ class MIMIC_CXR(BaseDataset):
         for file in files:
             file_url = f"{env.cxr_url}/{file}"
             file_root = os.path.dirname(file)
+            file_path = os.path.join(self.raw_folder, file_root)
+
+            if os.path.exists(file_path):
+                continue
 
             download_url(
                 url=file_url,
-                root=os.path.join(self.raw_folder, file_root),
+                root=file_path,
                 credentials=env.credentials,
             )
 
