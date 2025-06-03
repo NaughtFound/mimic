@@ -88,12 +88,8 @@ class MIMIC_CXR(BaseDataset):
                 "Images not found. You can use download=True to download them"
             )
 
-    def _list_downloadable_files(self) -> list[str]:
-        df = self.raw_folder + self.db.fetch_df(self.main_query)["image_path"]
-        return df.to_list()
-
     def _check_images_exists(self):
-        files = self._list_downloadable_files()
+        files = self.db.fetch_df(self.main_query)["image_path"].to_list()
 
         if len(files) == 0:
             return False
@@ -158,7 +154,7 @@ class MIMIC_CXR(BaseDataset):
             file_root = os.path.dirname(file)
             file_path = os.path.join(self.raw_folder, file_root)
 
-            if os.path.exists(file_path):
+            if os.path.exists(os.path.join(self.raw_folder, file)):
                 continue
 
             download_url(
