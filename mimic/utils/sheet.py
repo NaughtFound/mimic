@@ -1,5 +1,5 @@
 import os
-from typing import Callable, Literal, Union
+from typing import Any, Callable, Literal, Union
 
 import pandas as pd
 from .scaler import Scaler
@@ -201,7 +201,7 @@ class SheetQuery(Query):
         if type(id) is str:
             id = [id]
 
-        condition = f"{column_id} IN ({','.join(id)})"
+        condition = f"{column_id} IN ({','.join(map(lambda col: f"'{col}'", id))})"
 
         return self.where(condition, inplace=inplace)
 
@@ -214,6 +214,19 @@ class SheetQuery(Query):
 
         if condition.mode in ["left", "right"]:
             query.append(f"ON {condition.prase()}")
+
+        return self._add_query(query, inplace)
+
+    def limit(
+        self,
+        limit: int,
+        offset: int = None,
+        inplace: bool = True,
+    ) -> "SheetQuery":
+        query = [f"LIMIT {limit}"]
+
+        if offset is not None:
+            query.append(f"OFFSET {offset}")
 
         return self._add_query(query, inplace)
 
@@ -246,6 +259,17 @@ class SheetQuery(Query):
                 count.append(f'COUNT("{column}") AS "{column}"')
 
         query = [f"SELECT {','.join(count)} FROM {sheet.table_name}"]
+
+        return SheetQuery(query)
+
+    @staticmethod
+    def update(sheet: Sheet, fields: dict[str, Any]) -> "SheetQuery":
+        update = []
+
+        for f in fields:
+            update.append(f'"{f}"={fields[f]}')
+
+        query = f"UPDATE {sheet.table_name} SET {','.join(update)}"
 
         return SheetQuery(query)
 
