@@ -155,16 +155,23 @@ class SheetQuery(Query):
 
     def where(
         self,
-        condition: str,
+        condition: Union[str, list[str]],
         operator: Literal["and", "or"] = "and",
         inplace: bool = True,
     ) -> "SheetQuery":
+        if type(condition) is str:
+            condition = [condition]
+
         contains_where = any(s.lower().startswith("where") for s in self.query)
 
-        if contains_where:
-            query = f"{operator.upper()} {condition}"
-        else:
-            query = f"WHERE {condition}"
+        query = []
+
+        for c in condition:
+            if contains_where:
+                query.append(f"{operator.upper()} {c}")
+            else:
+                query.append(f"WHERE {c}")
+                contains_where = True
 
         return self._add_query(query, inplace)
 
