@@ -285,9 +285,12 @@ class MIMIC_CXR(BaseDataset):
         query = self.main_query.find_by_row_id(idx, inplace=False)
         df = self.db.fetch_df(query).drop(columns=["row_num", "download"])
 
-        image_paths = os.path.join(self.raw_folder, "files/") + df["image_path"]
+        image_paths = df["image_path"]
 
-        images = [self._load_image(img_path) for img_path in image_paths]
+        images = [
+            self._load_image(os.path.join(self.raw_folder, img_path))
+            for img_path in image_paths
+        ]
 
         if self.transform is not None:
             images = [self.transform(img) for img in images]
