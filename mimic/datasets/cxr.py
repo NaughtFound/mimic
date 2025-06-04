@@ -12,7 +12,7 @@ from mimic.utils.db import DuckDB
 from .base import BaseDataset
 
 
-def transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
+def _transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
     df["image_path"] = (
         "files/p"
         + df["subject_id"].str[:2]
@@ -228,7 +228,7 @@ class MIMIC_CXR(BaseDataset):
             id_column="dicom_id",
             table_name="split",
             file_name=cxr_files["split"]["name"],
-            transform=transform_split,
+            transform=_transform_split,
             **self.kwargs,
         )
 
