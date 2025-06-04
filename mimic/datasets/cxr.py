@@ -49,6 +49,12 @@ class MIMIC_CXR(BaseDataset):
     ):
         env = Env()
 
+        if "image_path" not in columns and columns != "*":
+            if type(columns) is list:
+                columns.append("image_path")
+            else:
+                columns += ",image_path"
+
         self.root = root
         self.db = db
         self.column_id = "study_id"
@@ -283,13 +289,11 @@ class MIMIC_CXR(BaseDataset):
 
     def collate_fn(self, idx: list[int]):
         query = self.main_query.find_by_row_id(idx, inplace=False)
-        df = self.db.fetch_df(query).drop(columns=["row_num", "download"])
-
-        image_paths = df["image_path"]
+        df = self.db.fetch_df(query).drop(columns=["row_num"])
 
         images = [
             self._load_image(os.path.join(self.raw_folder, img_path))
-            for img_path in image_paths
+            for img_path in df["image_path"]
         ]
 
         if self.transform is not None:
