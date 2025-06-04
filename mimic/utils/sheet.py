@@ -131,6 +131,15 @@ class SheetQuery(Query):
 
         self.query = query
 
+    @staticmethod
+    def _parse_column(column: str) -> str:
+        parts = column.split(".")
+
+        if " " in parts[-1]:
+            parts[-1] = f'"{column}"'
+
+        return ".".join(parts)
+
     def _add_query(
         self,
         query: Union[str, list[str]],
@@ -201,7 +210,7 @@ class SheetQuery(Query):
         if type(id) is str:
             id = [id]
 
-        condition = f"{column_id} IN ({','.join(map(lambda col: f"'{col}'", id))})"
+        condition = f"{SheetQuery._parse_column(column_id)} IN ({','.join(map(lambda col: f"'{col}'", id))})"
 
         return self.where(condition, inplace=inplace)
 
@@ -236,7 +245,7 @@ class SheetQuery(Query):
         columns: Union[str, list[str]] = "*",
     ) -> "SheetQuery":
         if type(columns) is list:
-            columns = ",".join(map(lambda col: f'"{col}"', columns))
+            columns = ",".join(map(lambda col: SheetQuery._parse_column(col), columns))
 
         query = [
             f"SELECT row_number() OVER () - 1 AS row_num, {columns} FROM {sheet.table_name}"
@@ -256,7 +265,9 @@ class SheetQuery(Query):
 
         else:
             for column in columns:
-                count.append(f'COUNT("{column}") AS "{column}"')
+                count.append(
+                    f"COUNT({SheetQuery._parse_column(column)}) AS {SheetQuery._parse_column(column)}"
+                )
 
         query = [f"SELECT {','.join(count)} FROM {sheet.table_name}"]
 
@@ -267,7 +278,7 @@ class SheetQuery(Query):
         update = []
 
         for f in fields:
-            update.append(f'"{f}"={fields[f]}')
+            update.append(f"{SheetQuery._parse_column(f)}={fields[f]}")
 
         query = f"UPDATE {sheet.table_name} SET {','.join(update)}"
 
@@ -276,7 +287,8 @@ class SheetQuery(Query):
     @staticmethod
     def create_table(sheet: Sheet) -> "SheetQuery":
         columns_str = ",".join(
-            f'"{col}" {dtype}' for col, dtype in sheet.table_fields.items()
+            f"{SheetQuery._parse_column(col)} {dtype}"
+            for col, dtype in sheet.table_fields.items()
         )
         create_query = f"CREATE TABLE IF NOT EXISTS {sheet.table_name} ({columns_str})"
 

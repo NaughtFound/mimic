@@ -4,6 +4,7 @@ from typing import Any, Callable, Literal, Union
 import torch
 import pandas as pd
 from PIL import Image
+from torchvision import transforms
 from mimic.utils import download_url, check_integrity
 from mimic.utils.env import Env
 from mimic.utils.sheet import Sheet, SheetQuery, SheetJoinCondition
@@ -52,12 +53,12 @@ class MIMIC_CXR(BaseDataset):
         self.root = root
         self.db = db
         self.column_id = "study_id"
-        self.columns = self._ensure_columns(columns, ["dicom_id", "image_path"])
+        self.columns = self._ensure_columns(columns, ["split.dicom_id", "image_path"])
         self.label_proportions = label_proportions
         self.study = study
         self.study_transform = study_transform
         self.study_table_fields = study_table_fields
-        self.transform = transform
+        self.transform = transform or self._create_transform()
         self.use_metadata = use_metadata
         self.metadata_transform = metadata_transform
         self.metadata_table_fields = metadata_table_fields
@@ -105,6 +106,14 @@ class MIMIC_CXR(BaseDataset):
             raise RuntimeError(
                 "Images not found. You can use download=True to download them"
             )
+
+    def _create_transform(self):
+        return transforms.Compose(
+            [
+                transforms.Resize((1500, 1500)),
+                transforms.ToTensor(),
+            ]
+        )
 
     def _ensure_columns(
         self,
@@ -265,14 +274,9 @@ class MIMIC_CXR(BaseDataset):
                     "dicom_id": "string",
                     "subject_id": "string",
                     "study_id": "string",
-                    "PerformedProcedureStepDescription": "string",
                     "ViewPosition": "string",
-                    "Rows": "int",
-                    "Columns": "int",
-                    "StudyDate": "string",
-                    "StudyTime": "string",
-                    "ProcedureCodeSequence_CodeMeaning": "string",
-                    "ViewCodeSequence_CodeMeaning": "string",
+                    "Rows": "string",
+                    "Columns": "string",
                     "PatientOrientationCodeSequence_CodeMeaning": "string",
                 },
                 table_fields=self.metadata_table_fields,
@@ -304,10 +308,9 @@ class MIMIC_CXR(BaseDataset):
             for img_path in df["image_path"]
         ]
 
-        if self.transform is not None:
-            images = [self.transform(img) for img in images]
+        images = [self.transform(img) for img in images]
 
         df_tensor = torch.from_numpy(df.drop(columns=["image_path"]).to_numpy())
-        image_tensors = torch.stack([torch.tensor(img) for img in images])
+        image_tensors = torch.stack(images)
 
         return image_tensors, df_tensor
