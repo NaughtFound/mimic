@@ -42,6 +42,9 @@ class MIMIC_CXR(BaseDataset):
         transform: Callable = None,
         download: bool = False,
         mode: Literal["train", "test", "validate"] = "train",
+        use_metadata: bool = False,
+        metadata_transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
+        metadata_table_fields: dict[str, str] = None,
         **kwargs,
     ):
         env = Env()
@@ -55,8 +58,30 @@ class MIMIC_CXR(BaseDataset):
         self.study_transform = study_transform
         self.study_table_fields = study_table_fields
         self.transform = transform
+        self.use_metadata = use_metadata
+        self.metadata_transform = metadata_transform
+        self.metadata_table_fields = metadata_table_fields
         self.kwargs = kwargs
         self.sheets = self._create_sheets(env.cxr_files)
+
+        join_conditions = [
+            SheetJoinCondition(
+                l_sheet=self.sheets["split"],
+                r_sheet=self.sheets[self.study],
+                columns=("study_id", "study_id"),
+                mode="left",
+            )
+        ]
+
+        if use_metadata:
+            join_conditions.append(
+                SheetJoinCondition(
+                    l_sheet=self.sheets["split"],
+                    r_sheet=self.sheets["metadata"],
+                    columns=("dicom_id", "dicom_id"),
+                    mode="left",
+                )
+            )
 
         super().__init__(
             root=self.root,
@@ -64,14 +89,7 @@ class MIMIC_CXR(BaseDataset):
             column_id=self.column_id,
             columns=self.columns,
             sheets=self.sheets,
-            join_conditions=[
-                SheetJoinCondition(
-                    l_sheet=self.sheets["split"],
-                    r_sheet=self.sheets[self.study],
-                    columns=("study_id", "study_id"),
-                    mode="left",
-                )
-            ],
+            join_conditions=join_conditions,
             download=download,
         )
 
@@ -220,10 +238,40 @@ class MIMIC_CXR(BaseDataset):
             **self.kwargs,
         )
 
-        return {
+        sheets = {
             "split": split_sheet,
             self.study: study_sheet,
         }
+
+        if self.use_metadata:
+            metadata_sheet = Sheet(
+                root=self.raw_folder,
+                db=self.db,
+                columns={
+                    "dicom_id": "string",
+                    "subject_id": "string",
+                    "study_id": "string",
+                    "PerformedProcedureStepDescription": "string",
+                    "ViewPosition": "string",
+                    "Rows": "int",
+                    "Columns": "int",
+                    "StudyDate": "string",
+                    "StudyTime": "string",
+                    "ProcedureCodeSequence_CodeMeaning": "string",
+                    "ViewCodeSequence_CodeMeaning": "string",
+                    "PatientOrientationCodeSequence_CodeMeaning": "string",
+                },
+                table_fields=self.metadata_table_fields,
+                id_column="dicom_id",
+                table_name="metadata",
+                file_name=cxr_files["metadata"]["name"],
+                transform=self.metadata_transform,
+                **self.kwargs,
+            )
+
+            sheets["metadata"] = metadata_sheet
+
+        return sheets
 
     def _load_image(self, img_path: str):
         image = Image.open(img_path)
