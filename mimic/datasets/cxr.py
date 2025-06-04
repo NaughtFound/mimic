@@ -49,16 +49,10 @@ class MIMIC_CXR(BaseDataset):
     ):
         env = Env()
 
-        if "image_path" not in columns and columns != "*":
-            if type(columns) is list:
-                columns.append("image_path")
-            else:
-                columns += ",image_path"
-
         self.root = root
         self.db = db
         self.column_id = "study_id"
-        self.columns = columns
+        self.columns = self._ensure_columns(columns, ["dicom_id", "image_path"])
         self.label_proportions = label_proportions
         self.study = study
         self.study_transform = study_transform
@@ -111,6 +105,20 @@ class MIMIC_CXR(BaseDataset):
             raise RuntimeError(
                 "Images not found. You can use download=True to download them"
             )
+
+    def _ensure_columns(
+        self,
+        columns: Union[str, list[str]],
+        required_columns: list[str],
+    ) -> Union[str, list[str]]:
+        if columns != "*":
+            if type(columns) is list:
+                columns.extend(col for col in required_columns if col not in columns)
+            else:
+                for col in required_columns:
+                    if col not in columns:
+                        columns += f",{col}"
+        return columns
 
     def _check_images_exists(self):
         files = self.db.fetch_df(self.main_query)["image_path"].to_list()
@@ -289,7 +297,7 @@ class MIMIC_CXR(BaseDataset):
 
     def collate_fn(self, idx: list[int]):
         query = self.main_query.find_by_row_id(idx, inplace=False)
-        df = self.db.fetch_df(query).drop(columns=["row_num"])
+        df = self.db.fetch_df(query).drop(columns=["row_num", "dicom_id"])
 
         images = [
             self._load_image(os.path.join(self.raw_folder, img_path))
