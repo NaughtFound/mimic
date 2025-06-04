@@ -47,6 +47,7 @@ class MIMIC_CXR(BaseDataset):
         use_metadata: bool = False,
         metadata_transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
         metadata_table_fields: dict[str, str] = None,
+        download_condition: Callable[[SheetQuery, str], SheetQuery] = None,
         **kwargs,
     ):
         env = Env()
@@ -63,6 +64,7 @@ class MIMIC_CXR(BaseDataset):
         self.use_metadata = use_metadata
         self.metadata_transform = metadata_transform
         self.metadata_table_fields = metadata_table_fields
+        self.download_condition = download_condition
         self.kwargs = kwargs
         self.sheets = self._create_sheets(env.cxr_files)
 
@@ -156,29 +158,34 @@ class MIMIC_CXR(BaseDataset):
     def _download_images(self):
         env = Env()
 
-        count_query = self._calc_query(
-            only_count=True,
-            downloaded_only=False,
-            columns=self.label_proportions.keys(),
-        )
-        download_query = self._calc_query(
+        main_query = self._calc_query(
             only_count=False,
             downloaded_only=False,
         )
 
-        total = self.db.fetch_df(count_query)
-        proportion = pd.Series(self.label_proportions)
-        total_download = total.mul(proportion, axis=1).iloc[0].to_dict()
+        count_query = self._calc_query(
+            only_count=True,
+            downloaded_only=False,
+        )
 
-        for k in total_download:
-            query = download_query.where(
-                f'"{k}" IS NOT NULL',
-                inplace=False,
-            ).limit(
-                int(total_download[k]),
-                inplace=False,
-            )
-            rows = self.db.fetch_df(query)["dicom_id"].to_list()
+        for k in self.label_proportions:
+            m_query = main_query.copy()
+            c_query = count_query.copy()
+
+            if self.download_condition is not None:
+                m_query = self.download_condition(m_query, k)
+                c_query = self.download_condition(c_query, k)
+            else:
+                condition = f"{SheetQuery._parse_column(k)} IS NOT NULL"
+                m_query.where(condition)
+                c_query.where(condition)
+
+            total = self.db.fetch_one(c_query)[0]
+            total_download = int(total * self.label_proportions[k])
+
+            m_query.limit(int(total_download[k]))
+
+            rows = self.db.fetch_df(m_query)["dicom_id"].to_list()
 
             if len(rows) == 0:
                 continue

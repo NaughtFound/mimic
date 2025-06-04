@@ -157,6 +157,12 @@ class SheetQuery(Query):
 
         return sq
 
+    def copy(self) -> "SheetQuery":
+        sq = SheetQuery.empty()
+        sq.query = self.query.copy()
+
+        return sq
+
     def parse(self) -> str:
         final_query = " ".join(self.query) + ";"
 
