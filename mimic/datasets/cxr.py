@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal, Union
 import torch
 import pandas as pd
+from tqdm import tqdm
 from PIL import Image
 from torchvision import transforms
 from mimic.utils import download_url, check_integrity
@@ -200,7 +201,7 @@ class MIMIC_CXR(BaseDataset):
 
         files = self.db.fetch_df(self.main_query)["image_path"].to_list()
 
-        for file in files:
+        for file in tqdm(files, desc="Downloading Images"):
             file_url = f"{env.cxr_url}/{file}"
             file_root = os.path.dirname(file)
             file_path = os.path.join(self.raw_folder, file_root)
@@ -212,6 +213,7 @@ class MIMIC_CXR(BaseDataset):
                 url=file_url,
                 root=file_path,
                 credentials=env.credentials,
+                verbose=False,
             )
 
     def _files(self):

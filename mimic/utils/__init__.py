@@ -44,6 +44,7 @@ def download_url(
     credentials: dict[str, str],
     filename: Optional[Union[str, pathlib.Path]] = None,
     md5: Optional[str] = None,
+    verbose: bool = True,
 ) -> None:
     root = os.path.expanduser(root)
     if not filename:
@@ -53,10 +54,12 @@ def download_url(
     os.makedirs(root, exist_ok=True)
 
     if check_integrity(fpath, md5):
-        print("Using downloaded and verified file: " + fpath)
+        if verbose:
+            print("Using downloaded and verified file: " + fpath)
         return
 
-    print("Downloading " + url + " to " + fpath)
+    if verbose:
+        print("Downloading " + url + " to " + fpath)
     _urlretrieve(url, fpath, credentials)
 
     if not check_integrity(fpath, md5):
@@ -71,6 +74,7 @@ def download_and_extract_archive(
     filename: Optional[Union[str, pathlib.Path]] = None,
     md5: Optional[str] = None,
     remove_finished: bool = False,
+    verbose: bool = True,
 ) -> None:
     download_root = os.path.expanduser(download_root)
     if extract_root is None:
@@ -84,8 +88,10 @@ def download_and_extract_archive(
         credentials=credentials,
         filename=filename,
         md5=md5,
+        verbose=verbose,
     )
 
     archive = os.path.join(download_root, filename)
-    print(f"Extracting {archive} to {extract_root}")
+    if verbose:
+        print(f"Extracting {archive} to {extract_root}")
     extract_archive(archive, extract_root, remove_finished)
