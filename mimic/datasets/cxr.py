@@ -161,6 +161,7 @@ class MIMIC_CXR(BaseDataset):
         main_query = self._calc_query(
             only_count=False,
             downloaded_only=False,
+            columns="split.dicom_id",
         )
 
         count_query = self._calc_query(
@@ -183,7 +184,7 @@ class MIMIC_CXR(BaseDataset):
             total = self.db.fetch_one(c_query)[0]
             total_download = int(total * self.label_proportions[k])
 
-            m_query.limit(int(total_download[k]))
+            m_query.limit(total_download)
 
             rows = self.db.fetch_df(m_query)["dicom_id"].to_list()
 
