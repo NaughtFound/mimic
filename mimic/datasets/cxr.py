@@ -38,7 +38,6 @@ class MIMIC_CXR(BaseDataset):
         db: DuckDB,
         columns: Union[str, list[str]],
         label_proportions: dict[str, float],
-        join_conditions: list[SheetJoinCondition] = None,
         study: Literal["chexpert", "negbio"] = "chexpert",
         study_transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
         study_table_fields: dict[str, str] = None,
@@ -69,33 +68,13 @@ class MIMIC_CXR(BaseDataset):
         self.kwargs = kwargs
         self.sheets = self._create_sheets(env.cxr_files)
 
-        if join_conditions is None:
-            join_conditions = [
-                SheetJoinCondition(
-                    l_sheet=self.sheets["split"],
-                    r_sheet=self.sheets[self.study],
-                    columns=("study_id", "study_id"),
-                    mode="left",
-                )
-            ]
-
-            if use_metadata:
-                join_conditions.append(
-                    SheetJoinCondition(
-                        l_sheet=self.sheets["split"],
-                        r_sheet=self.sheets["metadata"],
-                        columns=("dicom_id", "dicom_id"),
-                        mode="left",
-                    )
-                )
-
         super().__init__(
             root=self.root,
             db=self.db,
             column_id=self.column_id,
             columns=self.columns,
             sheets=self.sheets,
-            join_conditions=join_conditions,
+            join_conditions=self._create_join_conditions(),
             download=download,
         )
 
@@ -119,6 +98,28 @@ class MIMIC_CXR(BaseDataset):
                 transforms.ToTensor(),
             ]
         )
+
+    def _create_join_conditions(self) -> list[SheetJoinCondition]:
+        join_conditions = [
+            SheetJoinCondition(
+                l_sheet=self.sheets["split"],
+                r_sheet=self.sheets[self.study],
+                columns=("study_id", "study_id"),
+                mode="left",
+            )
+        ]
+
+        if self.use_metadata:
+            join_conditions.append(
+                SheetJoinCondition(
+                    l_sheet=self.sheets["split"],
+                    r_sheet=self.sheets["metadata"],
+                    columns=("dicom_id", "dicom_id"),
+                    mode="left",
+                )
+            )
+
+        return join_conditions
 
     def _ensure_columns(
         self,
