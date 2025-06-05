@@ -39,7 +39,9 @@ class BaseDataset(Dataset, ABC):
 
         self.resources = []
         for k in self.sheets.keys():
-            self.resources.append(self._files()[k])
+            resource = self._files()[k]
+            resource["download_root"] = self.sheets[k].root
+            self.resources.append(resource)
 
         self.main_query = self._calc_query(only_count=False)
         self.count_query = self._calc_query(only_count=True)
@@ -65,7 +67,7 @@ class BaseDataset(Dataset, ABC):
         return all(
             check_integrity(
                 os.path.join(
-                    self.raw_folder,
+                    f.get("download_root"),
                     os.path.splitext(os.path.basename(f.get("url")))[0],
                 )
             )
@@ -89,7 +91,7 @@ class BaseDataset(Dataset, ABC):
         for f in self.resources:
             download_and_extract_archive(
                 url=f.get("url"),
-                download_root=self.raw_folder,
+                download_root=f.get("download_root"),
                 credentials=self.credentials,
                 md5=f.get("md5"),
             )
