@@ -48,6 +48,7 @@ class MIMIC_CXR(BaseDataset):
         metadata_transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
         metadata_table_fields: dict[str, str] = None,
         download_condition: Callable[[SheetQuery, str], SheetQuery] = None,
+        skip_load: bool = False,
         **kwargs,
     ):
         env = Env()
@@ -76,6 +77,7 @@ class MIMIC_CXR(BaseDataset):
             sheets=self.sheets,
             join_conditions=self._create_join_conditions(),
             download=download,
+            skip_load=skip_load,
         )
 
         split_condition = f"split='{mode}'"
@@ -85,6 +87,9 @@ class MIMIC_CXR(BaseDataset):
 
         if download:
             self._download_images()
+
+        if skip_load:
+            return
 
         if not self._check_images_exists():
             raise RuntimeError(

@@ -23,6 +23,7 @@ class BaseDataset(Dataset, ABC):
         sheets: dict[str, Sheet],
         join_conditions: list[SheetJoinCondition],
         download: bool = False,
+        skip_load: bool = False,
     ):
         super().__init__()
 
@@ -45,6 +46,9 @@ class BaseDataset(Dataset, ABC):
 
         if download:
             self._download()
+
+        if skip_load:
+            return
 
         if not self._check_exists():
             raise RuntimeError(
