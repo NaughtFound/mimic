@@ -125,12 +125,6 @@ class BaseDataset(Dataset, ABC):
 
         return df
 
-    def transform_df(self, df: pd.DataFrame) -> pd.DataFrame:
-        for k in self.sheets:
-            df = self.sheets[k].transform_df(df)
-
-        return df
-
     def __len__(self) -> int:
         count = self.db.fetch_one(self.count_query)[0]
 

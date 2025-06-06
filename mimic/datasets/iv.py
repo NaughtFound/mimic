@@ -12,8 +12,6 @@ class MIMIC_IV(BaseDataset):
 
         df = self.db.fetch_df(query).drop(columns=["row_num"])
 
-        df = self.transform_df(df)
-
         df_tensor = torch.from_numpy(df.to_numpy())
 
         return df_tensor
