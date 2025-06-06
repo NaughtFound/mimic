@@ -54,8 +54,9 @@ class Sheet:
         if self.scaler is None:
             return
 
+        scaler_root = os.path.join(self.root, self.table_name)
         for s in self.scaler:
-            s.load(self.root)
+            s.load(scaler_root)
 
     def _create_table(self):
         query = SheetQuery.create_table(self)
@@ -76,11 +77,12 @@ class Sheet:
         if self.scaler is None:
             return df
 
+        scaler_root = os.path.join(self.root, self.table_name)
         for s in self.scaler:
             if self.train:
                 s.fit(df)
 
-            s.save(self.root)
+            s.save(scaler_root)
             df = s.transform(df)
 
         return df
