@@ -106,12 +106,12 @@ class BaseDataset(Dataset, ABC):
         columns: list[str] = None,
     ) -> SheetQuery:
         query = SheetQuery.empty()
-        sheets = list(self.sheets.values())
+        first_sheet = self.join_conditions[0].l_sheet
 
         if only_count:
-            query = SheetQuery.count(sheets[0], columns=columns or "*")
+            query = SheetQuery.count(first_sheet, columns=columns or "*")
         else:
-            query = SheetQuery.select(sheets[0], columns=columns or self.columns)
+            query = SheetQuery.select(first_sheet, columns=columns or self.columns)
 
         for condition in self.join_conditions:
             query.join(condition)
