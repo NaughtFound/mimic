@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Any, Callable, Literal, Union
 
 import pandas as pd
@@ -9,7 +10,7 @@ from .db import DuckDB, Query
 class Sheet:
     def __init__(
         self,
-        root: str,
+        root: Union[str, Path],
         db: DuckDB,
         table_name: str,
         file_name: str,
@@ -45,6 +46,11 @@ class Sheet:
             self._drop_table()
 
         self._create_table()
+        self._load_scalers()
+
+    def _load_scalers(self):
+        for s in self.scaler:
+            s.load(self.root)
 
     def _create_table(self):
         query = SheetQuery.create_table(self)
@@ -66,7 +72,8 @@ class Sheet:
             return df
 
         for s in self.scaler:
-            df = s.transform(df)
+            s.fit(df)
+            s.save(self.root)
 
         return df
 
