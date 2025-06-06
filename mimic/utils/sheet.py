@@ -21,6 +21,7 @@ class Sheet:
         transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
         drop_table: bool = True,
         force_insert: bool = False,
+        train: bool = True,
     ):
         self.root = root
         self.db = db
@@ -32,6 +33,7 @@ class Sheet:
         self.transform = transform
         self.drop_table = drop_table
         self.force_insert = force_insert
+        self.train = train
 
         if table_fields is None:
             table_fields = columns
@@ -75,7 +77,9 @@ class Sheet:
             return df
 
         for s in self.scaler:
-            s.fit(df)
+            if self.train:
+                s.fit(df)
+
             s.save(self.root)
             df = s.transform(df)
 
