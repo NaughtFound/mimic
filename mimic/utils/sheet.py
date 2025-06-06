@@ -102,6 +102,11 @@ class Sheet:
 
         self._insert_data(csv_path)
 
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        for s in self.scaler:
+            df = s.transform(df)
+        return df
+
 
 class SheetJoinCondition:
     def __init__(

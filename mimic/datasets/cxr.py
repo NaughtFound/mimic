@@ -321,6 +321,8 @@ class MIMIC_CXR(BaseDataset):
         query = self.main_query.find_by_row_id(idx, inplace=False)
         df = self.db.fetch_df(query).drop(columns=["row_num", "dicom_id"])
 
+        df = self.transform_df(df)
+
         images = [
             self._load_image(os.path.join(self.raw_folder, img_path))
             for img_path in df["image_path"]
