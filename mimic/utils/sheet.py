@@ -21,6 +21,7 @@ class Sheet:
         transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
         drop_table: bool = True,
         force_insert: bool = False,
+        force_fit_scaler: bool = False,
     ):
         self.root = root
         self.db = db
@@ -32,6 +33,7 @@ class Sheet:
         self.transform = transform
         self.drop_table = drop_table
         self.force_insert = force_insert
+        self.force_fit_scaler = force_fit_scaler
 
         if table_fields is None:
             table_fields = columns
@@ -46,11 +48,23 @@ class Sheet:
             self._drop_table()
 
         self._create_table()
-        self._load_scalers()
+        self._load_scaler()
 
-    def _load_scalers(self):
-        for s in self.scaler:
-            s.load(self.root)
+    def _load_scaler(self):
+        if self.force_fit_scaler:
+            csv_path = os.path.join(self.root, "transformed", self.file_name)
+            df = pd.read_csv(
+                csv_path,
+                usecols=self.columns.keys(),
+                dtype=self.columns,
+            )
+
+            for s in self.scaler:
+                s.fit(df)
+                s.save(self.root)
+        else:
+            for s in self.scaler:
+                s.load(self.root)
 
     def _create_table(self):
         query = SheetQuery.create_table(self)
@@ -102,7 +116,7 @@ class Sheet:
 
         self._insert_data(csv_path)
 
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+    def transform_df(self, df: pd.DataFrame) -> pd.DataFrame:
         for s in self.scaler:
             df = s.transform(df)
         return df

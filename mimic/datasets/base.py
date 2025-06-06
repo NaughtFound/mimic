@@ -127,7 +127,7 @@ class BaseDataset(Dataset, ABC):
 
     def transform_df(self, df: pd.DataFrame) -> pd.DataFrame:
         for k in self.sheets:
-            df = self.sheets[k].transform(df)
+            df = self.sheets[k].transform_df(df)
 
         return df
 
