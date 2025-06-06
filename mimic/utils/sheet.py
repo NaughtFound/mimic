@@ -102,7 +102,7 @@ class SheetJoinCondition:
         l_sheet: Sheet,
         r_sheet: Sheet,
         columns: tuple[str] = None,
-        mode: Literal["left", "right", "natural"] = "natural",
+        mode: Literal["left", "right", "natural", "semi", "inner"] = "natural",
     ):
         if columns is None:
             columns = (l_sheet.id_column, r_sheet.id_column)
@@ -113,7 +113,10 @@ class SheetJoinCondition:
         self.mode = mode
 
     def prase(self):
-        return f"{self.l_sheet.table_name}.{self.l_column}={self.r_sheet.table_name}.{self.r_column}"
+        if self.l_column == self.r_column:
+            return f"USING ({self.l_column})"
+
+        return f"ON ({self.l_sheet.table_name}.{self.l_column}={self.r_sheet.table_name}.{self.r_column})"
 
     @property
     def _mode(self):
@@ -227,8 +230,8 @@ class SheetQuery(Query):
     ) -> "SheetQuery":
         query = [f"{condition._mode} JOIN {condition._table_name}"]
 
-        if condition.mode in ["left", "right"]:
-            query.append(f"ON {condition.prase()}")
+        if condition.mode != "natural":
+            query.append(condition.prase())
 
         return self._add_query(query, inplace)
 
