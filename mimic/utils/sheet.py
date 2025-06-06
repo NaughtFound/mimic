@@ -51,6 +51,9 @@ class Sheet:
         self._load_scaler()
 
     def _load_scaler(self):
+        if self.scaler is None:
+            return
+
         if self.force_fit_scaler:
             csv_path = os.path.join(self.root, "transformed", self.file_name)
             df = pd.read_csv(
@@ -117,6 +120,9 @@ class Sheet:
         self._insert_data(csv_path)
 
     def transform_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        if self.scaler is None:
+            return df
+
         for s in self.scaler:
             df = s.transform(df)
         return df
