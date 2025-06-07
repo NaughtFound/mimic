@@ -132,7 +132,7 @@ class MIMIC_CXR(BaseDataset):
         required_columns: list[str],
     ) -> Union[str, list[str]]:
         if columns != "*":
-            if type(columns) is list:
+            if isinstance(columns, list):
                 columns.extend(col for col in required_columns if col not in columns)
             else:
                 for col in required_columns:

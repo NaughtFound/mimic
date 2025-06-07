@@ -146,7 +146,7 @@ class SheetJoinCondition:
 
 class SheetQuery(Query):
     def __init__(self, query: Union[str, list[str]]):
-        if type(query) is str:
+        if isinstance(query, str):
             query = [query]
 
         self.query = query
@@ -165,7 +165,7 @@ class SheetQuery(Query):
         query: Union[str, list[str]],
         inplace: bool = True,
     ) -> "SheetQuery":
-        if type(query) is list:
+        if isinstance(query, list):
             query = " ".join(query)
 
         if inplace:
@@ -194,7 +194,7 @@ class SheetQuery(Query):
         operator: Literal["and", "or"] = "and",
         inplace: bool = True,
     ) -> "SheetQuery":
-        if type(condition) is str:
+        if isinstance(condition, str):
             condition = [condition]
 
         contains_where = any(s.lower().startswith("where") for s in self.query)
@@ -215,7 +215,7 @@ class SheetQuery(Query):
         row_id: Union[int, list[int]],
         inplace: bool = True,
     ) -> "SheetQuery":
-        if type(row_id) is int:
+        if isinstance(row_id, int):
             row_id = [row_id]
 
         query = f"SELECT * FROM ({' '.join(self.query)})"
@@ -233,7 +233,7 @@ class SheetQuery(Query):
         id: Union[str, list[str]],
         inplace: bool = True,
     ) -> "SheetQuery":
-        if type(id) is str:
+        if isinstance(id, str):
             id = [id]
 
         condition = f"{SheetQuery._parse_column(column_id)} IN ({','.join(map(lambda col: f"'{col}'", id))})"
@@ -270,7 +270,7 @@ class SheetQuery(Query):
         sheet: Sheet,
         columns: Union[str, list[str]] = "*",
     ) -> "SheetQuery":
-        if type(columns) is list:
+        if isinstance(columns, list):
             columns = ",".join(map(lambda col: SheetQuery._parse_column(col), columns))
 
         query = [
