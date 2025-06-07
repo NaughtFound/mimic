@@ -1,6 +1,6 @@
 [project]
 name = "mimic"
-version = "1.0.0"
+version = "1.1.0"
 description = "A modular PyTorch dataset library for working with MIMIC-CXR-JPG and MIMIC-IV datasets."
 authors = [{ name = "Mohammad Ghazanfari", email = "mgh.5225@gmail.com" }]
 readme = "README.md"

@@ -6,6 +6,25 @@ import pandas as pd
 from .scaler import Scaler
 from .db import DuckDB, Query
 
+type SheetTransformCallable = Callable[
+    [DuckDB, pd.DataFrame],
+    Union[SheetSubset, list[SheetSubset]],
+]
+
+
+class SheetSubset:
+    def __init__(self, df: pd.DataFrame, train: bool = True):
+        self.df = df
+        self.train = train
+
+    def fit_transform(self, root: Union[str, Path], scaler: list[Scaler]):
+        for s in scaler:
+            if self.train:
+                s.fit(self.df)
+                s.save(root)
+            self.df = s.transform(self.df)
+        return self.df
+
 
 class Sheet:
     def __init__(
@@ -18,7 +37,7 @@ class Sheet:
         id_column: str,
         scaler: list[Scaler] = None,
         table_fields: dict[str, str] = None,
-        transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
+        transform: SheetTransformCallable = None,
         drop_table: bool = True,
         force_insert: bool = False,
         train: bool = True,
@@ -70,22 +89,33 @@ class Sheet:
         query = SheetQuery.copy_csv(self, csv_path)
         self.db.exec(query)
 
-    def _transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        if self.transform is not None:
-            df = self.transform(self.db, df)
+    def _merge_subsets(self, subsets: list[SheetSubset]) -> pd.DataFrame:
+        dataframes = []
 
-        if self.scaler is None:
-            return df
+        for subset in subsets:
+            dataframes.append(subset.df)
 
+        return pd.concat(dataframes, ignore_index=True)
+
+    def _transform_data(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         scaler_root = os.path.join(self.root, self.table_name)
-        for s in self.scaler:
-            if self.train:
-                s.fit(df)
 
-            s.save(scaler_root)
-            df = s.transform(df)
+        subsets = [SheetSubset(df, train=self.train)]
 
-        return df
+        if self.transform is not None:
+            subsets = self.transform(self.db, df)
+
+            if not isinstance(subsets, list):
+                subsets = [subsets]
+
+        if self.scaler is not None:
+            for subset in subsets:
+                subset.fit_transform(scaler_root, self.scaler)
+
+        return self._merge_subsets(subsets)
 
     def load_csv(self):
         csv_path = os.path.join(self.root, "transformed", self.file_name)
