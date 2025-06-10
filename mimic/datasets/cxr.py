@@ -8,12 +8,18 @@ from PIL import Image
 from torchvision import transforms
 from mimic.utils import download_url, check_integrity
 from mimic.utils.env import Env
-from mimic.utils.sheet import Sheet, SheetQuery, SheetJoinCondition
+from mimic.utils.sheet import (
+    SheetTransformCallable,
+    Sheet,
+    SheetQuery,
+    SheetSubset,
+    SheetJoinCondition,
+)
 from mimic.utils.db import DuckDB
 from .base import BaseDataset
 
 
-def _transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
+def _transform_split(db: DuckDB, df: pd.DataFrame) -> SheetSubset:
     df["image_path"] = (
         "files/p"
         + df["subject_id"].str[:2]
@@ -28,7 +34,7 @@ def _transform_split(db: DuckDB, df: pd.DataFrame) -> pd.DataFrame:
 
     df["download"] = False
 
-    return df
+    return SheetSubset(df)
 
 
 class MIMIC_CXR(BaseDataset):
@@ -39,13 +45,13 @@ class MIMIC_CXR(BaseDataset):
         columns: Union[str, list[str]],
         label_proportions: dict[str, float],
         study: Literal["chexpert", "negbio"] = "chexpert",
-        study_transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
+        study_transform: SheetTransformCallable = None,
         study_table_fields: dict[str, str] = None,
         transform: Callable = None,
         download: bool = False,
         mode: Literal["train", "test", "validate"] = "train",
         use_metadata: bool = False,
-        metadata_transform: Callable[[DuckDB, pd.DataFrame], pd.DataFrame] = None,
+        metadata_transform: SheetTransformCallable = None,
         metadata_table_fields: dict[str, str] = None,
         download_condition: Callable[[SheetQuery, str], SheetQuery] = None,
         skip_load: bool = False,
