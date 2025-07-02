@@ -18,7 +18,7 @@ This library provides ready-to-use dataset classes and a clean `BaseDataset` abs
 
 ## 🐍 Requirements
 
-- Python ≥ **3.12**
+- Python ≥ **3.10**
 - PyTorch ≥ **2.5**
 - Access to MIMIC-CXR-JPG and/or MIMIC-IV via PhysioNet
 

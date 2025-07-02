@@ -6,11 +6,6 @@ import pandas as pd
 from .scaler import Scaler
 from .db import DuckDB, Query
 
-type SheetTransformCallable = Callable[
-    [DuckDB, pd.DataFrame],
-    Union[SheetSubset, list[SheetSubset]],
-]
-
 
 class SheetSubset:
     def __init__(self, df: pd.DataFrame, train: bool = True):
@@ -24,6 +19,12 @@ class SheetSubset:
                 s.save(root)
             self.df = s.transform(self.df)
         return self.df
+
+
+SheetTransformCallable = Callable[
+    [DuckDB, pd.DataFrame],
+    Union[SheetSubset, list[SheetSubset]],
+]
 
 
 class Sheet:
@@ -266,7 +267,9 @@ class SheetQuery(Query):
         if isinstance(id, str):
             id = [id]
 
-        condition = f"{SheetQuery._parse_column(column_id)} IN ({','.join(map(lambda col: f"'{col}'", id))})"
+        cols = ",".join(map(lambda col: f"'{col}'", id))
+
+        condition = f"{SheetQuery._parse_column(column_id)} IN ({cols})"
 
         return self.where(condition, inplace=inplace)
 
