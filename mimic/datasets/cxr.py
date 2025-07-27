@@ -182,6 +182,13 @@ class MIMIC_CXR(BaseDataset):
             downloaded_only=False,
         )
 
+        self.db.exec(
+            SheetQuery.update(
+                self.sheets["split"],
+                {"download": False},
+            )
+        )
+
         for k in self.label_proportions:
             m_query = main_query.copy()
             c_query = count_query.copy()
