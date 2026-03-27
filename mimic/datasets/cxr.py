@@ -1,25 +1,28 @@
-import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Literal, Union
-import torch
+from typing import Any, Literal
+
 import pandas as pd
-from tqdm import tqdm
+import torch
 from PIL import Image
 from torchvision import transforms
-from mimic.utils import download_url, check_integrity
+from tqdm import tqdm
+
+from mimic.utils import check_integrity, download_url
+from mimic.utils.db import DuckDB
 from mimic.utils.env import Env
 from mimic.utils.sheet import (
-    SheetTransformCallable,
     Sheet,
+    SheetJoinCondition,
     SheetQuery,
     SheetSubset,
-    SheetJoinCondition,
+    SheetTransformCallable,
 )
-from mimic.utils.db import DuckDB
+
 from .base import BaseDataset
 
 
-def _transform_split(db: DuckDB, df: pd.DataFrame) -> SheetSubset:
+def _transform_split(db: DuckDB, df: pd.DataFrame) -> SheetSubset:  # noqa: ARG001
     df["image_path"] = (
         "files/p"
         + df["subject_id"].str[:2]
@@ -37,26 +40,27 @@ def _transform_split(db: DuckDB, df: pd.DataFrame) -> SheetSubset:
     return SheetSubset(df)
 
 
-class MIMIC_CXR(BaseDataset):
+class CXR(BaseDataset):
     def __init__(
         self,
-        root: Union[str, Path],
+        root: str | Path,
         db: DuckDB,
-        columns: Union[str, list[str]],
+        columns: str | list[str],
         label_proportions: dict[str, float],
         study: Literal["chexpert", "negbio"] = "chexpert",
-        study_transform: SheetTransformCallable = None,
-        study_table_fields: dict[str, str] = None,
-        transform: Callable = None,
-        download: bool = False,
+        study_transform: SheetTransformCallable | None = None,
+        study_table_fields: dict[str, str] | None = None,
+        transform: Callable[[Any], torch.Tensor] | None = None,
         mode: Literal["train", "test", "validate"] = "train",
+        metadata_transform: SheetTransformCallable | None = None,
+        metadata_table_fields: dict[str, str] | None = None,
+        download_condition: Callable[[SheetQuery, str], SheetQuery] | None = None,
+        *,
+        download: bool = False,
         use_metadata: bool = False,
-        metadata_transform: SheetTransformCallable = None,
-        metadata_table_fields: dict[str, str] = None,
-        download_condition: Callable[[SheetQuery, str], SheetQuery] = None,
         skip_load: bool = False,
         **kwargs,
-    ):
+    ) -> None:
         env = Env()
 
         self.root = root
@@ -98,11 +102,10 @@ class MIMIC_CXR(BaseDataset):
             return
 
         if not self._check_images_exists():
-            raise RuntimeError(
-                "Images not found. You can use download=True to download them"
-            )
+            msg = "Images not found. You can use download=True to download them"
+            raise RuntimeError(msg)
 
-    def _create_transform(self):
+    def _create_transform(self) -> Callable[[Any], torch.Tensor]:
         return transforms.Compose(
             [
                 transforms.Resize((1500, 1500)),
@@ -134,9 +137,9 @@ class MIMIC_CXR(BaseDataset):
 
     def _ensure_columns(
         self,
-        columns: Union[str, list[str]],
+        columns: str | list[str],
         required_columns: list[str],
-    ) -> Union[str, list[str]]:
+    ) -> str | list[str]:
         if columns != "*":
             if isinstance(columns, list):
                 columns.extend(col for col in required_columns if col not in columns)
@@ -146,21 +149,22 @@ class MIMIC_CXR(BaseDataset):
                         columns += f",{col}"
         return columns
 
-    def _check_images_exists(self):
+    def _check_images_exists(self) -> bool:
         files = self.db.fetch_df(self.main_query)["image_path"].to_list()
 
         if len(files) == 0:
             return False
 
-        return all(check_integrity(os.path.join(self.raw_folder, f)) for f in files)
+        return all(check_integrity(self.raw_folder / f) for f in files)
 
     def _calc_query(
         self,
+        columns: list[str] | str | None = None,
+        *,
         only_count: bool = False,
         downloaded_only: bool = True,
-        columns: list[str] = None,
-    ):
-        query = super()._calc_query(only_count, columns)
+    ) -> SheetQuery:
+        query = super()._calc_query(columns, only_count=only_count)
 
         if downloaded_only:
             download_condition = "download=True"
@@ -168,7 +172,7 @@ class MIMIC_CXR(BaseDataset):
 
         return query
 
-    def _download_images(self):
+    def _download_images(self) -> None:
         env = Env()
 
         main_query = self._calc_query(
@@ -201,7 +205,12 @@ class MIMIC_CXR(BaseDataset):
                 m_query.where(condition)
                 c_query.where(condition)
 
-            total = self.db.fetch_one(c_query)[0]
+            total = 0
+            res = self.db.fetch_one(c_query)
+
+            if res is not None:
+                total = res[0]
+
             total_download = int(total * self.label_proportions[k])
 
             m_query.limit(total_download)
@@ -222,10 +231,10 @@ class MIMIC_CXR(BaseDataset):
 
         for file in tqdm(files, desc="Downloading Images"):
             file_url = f"{env.cxr_url}/{file}"
-            file_root = os.path.dirname(file)
-            file_path = os.path.join(self.raw_folder, file_root)
+            file_root = Path(file).parent
+            file_path = self.raw_folder / file_root
 
-            if os.path.exists(os.path.join(self.raw_folder, file)):
+            if (self.raw_folder / str(file)).exists():
                 continue
 
             download_url(
@@ -235,7 +244,7 @@ class MIMIC_CXR(BaseDataset):
                 verbose=False,
             )
 
-    def _files(self):
+    def _files(self) -> dict[str, dict[str, Any]]:
         return Env().cxr_files
 
     def _create_sheets(self, cxr_files: dict[str, Any]) -> dict[str, Sheet]:
@@ -322,7 +331,7 @@ class MIMIC_CXR(BaseDataset):
 
         return sheets
 
-    def _load_image(self, img_path: str):
+    def _load_image(self, img_path: str) -> Image.Image:
         image = Image.open(img_path)
 
         if image.mode not in ["RGB", "L"]:
@@ -330,13 +339,12 @@ class MIMIC_CXR(BaseDataset):
 
         return image
 
-    def collate_fn(self, idx: list[int]):
+    def collate_fn(self, idx: list[int]) -> tuple[torch.Tensor, torch.Tensor]:
         query = self.main_query.find_by_row_id(idx, inplace=False)
         df = self.db.fetch_df(query).drop(columns=["row_num", "dicom_id"])
 
         images = [
-            self._load_image(os.path.join(self.raw_folder, img_path))
-            for img_path in df["image_path"]
+            self._load_image(self.raw_folder / img_path) for img_path in df["image_path"]
         ]
 
         images = [self.transform(img) for img in images]

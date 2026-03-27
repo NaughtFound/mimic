@@ -1,0 +1,7 @@
+{
+    "typeCheckingMode": "standard",
+    "reportIncompatibleMethodOverride": "information",
+    "include": [
+        "mimic/*"
+    ]
+}

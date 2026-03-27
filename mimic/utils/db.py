@@ -1,7 +1,9 @@
-import os
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any
+
 import duckdb
 import pandas as pd
-from abc import ABC, abstractmethod
 
 
 class Query(ABC):
@@ -13,17 +15,18 @@ class Query(ABC):
 class DuckDB:
     def __init__(
         self,
-        root: str,
+        root: str | Path,
         db_name: str,
-    ):
-        os.makedirs(root, exist_ok=True)
-        db_path = os.path.join(root, db_name)
+    ) -> None:
+        root = Path(root)
+        root.mkdir(parents=True, exist_ok=True)
+        db_path = root / db_name
         self.conn = duckdb.connect(database=db_path, read_only=False)
 
-    def close(self):
+    def close(self) -> None:
         self.conn.close()
 
-    def exec(self, query: Query):
+    def exec(self, query: Query) -> None:
         query_str = query.parse()
 
         self.conn.execute(query_str)
@@ -31,20 +34,14 @@ class DuckDB:
     def fetch_df(self, query: Query) -> pd.DataFrame:
         query_str = query.parse()
 
-        df = self.conn.execute(query_str).fetch_df()
+        return self.conn.execute(query_str).fetch_df()
 
-        return df
-
-    def fetch_one(self, query: Query) -> tuple:
+    def fetch_one(self, query: Query) -> tuple[Any, ...] | None:
         query_str = query.parse()
 
-        res = self.conn.execute(query_str).fetchone()
-
-        return res
+        return self.conn.execute(query_str).fetchone()
 
     def fetch_all(self, query: Query) -> list:
         query_str = query.parse()
 
-        res = self.conn.execute(query_str).fetchall()
-
-        return res
+        return self.conn.execute(query_str).fetchall()
