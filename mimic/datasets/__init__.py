@@ -1,9 +1,9 @@
 from .base import BaseDataset
-from .iv import MIMIC_IV
-from .cxr import MIMIC_CXR
+from .cxr import CXR
+from .iv import IV
 
 __all__ = (
+    "CXR",
+    "IV",
     "BaseDataset",
-    "MIMIC_IV",
-    "MIMIC_CXR",
 )

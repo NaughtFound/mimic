@@ -1,86 +1,101 @@
 import base64
+import logging
 import os
-import pathlib
-import urllib
-from typing import Optional, Union
+from pathlib import Path
+
+import requests
 from torchvision.datasets.utils import check_integrity, extract_archive
 from tqdm import tqdm
-
-USER_AGENT = "Wget/1.21.4"
 
 
 def _urlretrieve(
     url: str,
-    filename: Union[str, pathlib.Path],
+    filename: str | Path,
     credentials: dict[str, str],
     chunk_size: int = 1024 * 32,
 ) -> None:
+    filename = Path(filename)
     username = credentials["username"]
     password = credentials["password"]
     auth_string = f"{username}:{password}"
     auth_header = base64.b64encode(auth_string.encode()).decode()
+    headers = {
+        "User-Agent": "Wget/1.21.4",
+        "Authorization": f"Basic {auth_header}",
+    }
 
-    with urllib.request.urlopen(
-        urllib.request.Request(
+    try:
+        with requests.get(
             url,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Authorization": f"Basic {auth_header}",
-            },
-        )
-    ) as response:
-        with (
-            open(filename, "wb") as fh,
-            tqdm(total=response.length, unit="B", unit_scale=True) as pbar,
-        ):
-            while chunk := response.read(chunk_size):
-                fh.write(chunk)
-                pbar.update(len(chunk))
+            headers=headers,
+            stream=True,
+            timeout=(5, 30),
+        ) as response:
+            response.raise_for_status()
+
+            total_size = int(response.headers.get("content-length", 0))
+
+            with (
+                filename.open("wb") as fh,
+                tqdm(total=total_size, unit="B", unit_scale=True) as p_bar,
+            ):
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    fh.write(chunk)
+                    p_bar.update(len(chunk))
+
+    except requests.exceptions.Timeout:
+        logging.info("The request timed out!")
+    except requests.exceptions.RequestException as e:
+        logging.info(f"An error occurred: {e}")
 
 
 def download_url(
     url: str,
-    root: Union[str, pathlib.Path],
+    root: str | Path,
     credentials: dict[str, str],
-    filename: Optional[Union[str, pathlib.Path]] = None,
-    md5: Optional[str] = None,
+    filename: str | Path | None = None,
+    md5: str | None = None,
+    *,
     verbose: bool = True,
 ) -> None:
-    root = os.path.expanduser(root)
+    root = Path(root).expanduser()
     if not filename:
-        filename = os.path.basename(url)
-    fpath = os.fspath(os.path.join(root, filename))
+        filename = Path(url).name
 
-    os.makedirs(root, exist_ok=True)
+    fpath = os.fspath(root / filename)
+
+    root.mkdir(parents=True, exist_ok=True)
 
     if check_integrity(fpath, md5):
         if verbose:
-            print("Using downloaded and verified file: " + fpath)
+            logging.info(f"Using downloaded and verified file: {fpath}")
         return
 
     if verbose:
-        print("Downloading " + url + " to " + fpath)
+        logging.info(f"Downloading {url} to {fpath}")
     _urlretrieve(url, fpath, credentials)
 
     if not check_integrity(fpath, md5):
-        raise RuntimeError("File not found or corrupted.")
+        msg = "File not found or corrupted."
+        raise RuntimeError(msg)
 
 
 def download_and_extract_archive(
     url: str,
-    download_root: Union[str, pathlib.Path],
+    download_root: str | Path,
     credentials: dict[str, str],
-    extract_root: Optional[Union[str, pathlib.Path]] = None,
-    filename: Optional[Union[str, pathlib.Path]] = None,
-    md5: Optional[str] = None,
+    extract_root: str | Path | None = None,
+    filename: str | Path | None = None,
+    md5: str | None = None,
+    *,
     remove_finished: bool = False,
     verbose: bool = True,
 ) -> None:
-    download_root = os.path.expanduser(download_root)
+    download_root = Path(download_root).expanduser()
     if extract_root is None:
         extract_root = download_root
     if not filename:
-        filename = os.path.basename(url)
+        filename = Path(url).name
 
     download_url(
         url=url,
@@ -91,7 +106,7 @@ def download_and_extract_archive(
         verbose=verbose,
     )
 
-    archive = os.path.join(download_root, filename)
+    archive = download_root / filename
     if verbose:
-        print(f"Extracting {archive} to {extract_root}")
+        logging.info(f"Extracting {archive} to {extract_root}")
     extract_archive(archive, extract_root, remove_finished)

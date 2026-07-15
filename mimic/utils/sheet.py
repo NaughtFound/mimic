@@ -1,18 +1,24 @@
-import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Literal, Union
+from typing import Any, Literal
 
 import pandas as pd
-from .scaler import Scaler
+
 from .db import DuckDB, Query
+from .scaler import Scaler
+
+type SheetTransformCallable = Callable[
+    [DuckDB, pd.DataFrame],
+    SheetSubset | list[SheetSubset],
+]
 
 
 class SheetSubset:
-    def __init__(self, df: pd.DataFrame, train: bool = True):
+    def __init__(self, df: pd.DataFrame, *, train: bool = True) -> None:
         self.df = df
         self.train = train
 
-    def fit_transform(self, root: Union[str, Path], scaler: list[Scaler]):
+    def fit_transform(self, root: str | Path, scaler: list[Scaler]) -> pd.DataFrame:
         for s in scaler:
             if self.train:
                 s.fit(self.df)
@@ -21,29 +27,24 @@ class SheetSubset:
         return self.df
 
 
-SheetTransformCallable = Callable[
-    [DuckDB, pd.DataFrame],
-    Union[SheetSubset, list[SheetSubset]],
-]
-
-
 class Sheet:
     def __init__(
         self,
-        root: Union[str, Path],
+        root: str | Path,
         db: DuckDB,
         table_name: str,
         file_name: str,
-        columns: dict[str, str],
+        columns: dict[Any, Any],
         id_column: str,
-        scaler: list[Scaler] = None,
-        table_fields: dict[str, str] = None,
-        transform: SheetTransformCallable = None,
+        scaler: list[Scaler] | None = None,
+        table_fields: dict[str, str] | None = None,
+        transform: SheetTransformCallable | None = None,
+        *,
         drop_table: bool = True,
         force_insert: bool = False,
         train: bool = True,
-    ):
-        self.root = root
+    ) -> None:
+        self.root = Path(root)
         self.db = db
         self.table_name = table_name
         self.file_name = file_name
@@ -60,9 +61,9 @@ class Sheet:
 
         self.table_fields = table_fields
 
-        os.makedirs(self.root, exist_ok=True)
+        self.root.mkdir(parents=True, exist_ok=True)
 
-        self.source_csv_path = os.path.join(self.root, self.file_name)
+        self.source_csv_path = self.root / self.file_name
 
         if self.drop_table:
             self._drop_table()
@@ -70,31 +71,28 @@ class Sheet:
         self._create_table()
         self._load_scaler()
 
-    def _load_scaler(self):
+    def _load_scaler(self) -> None:
         if self.scaler is None:
             return
 
-        scaler_root = os.path.join(self.root, self.table_name)
+        scaler_root = self.root / self.table_name
         for s in self.scaler:
             s.load(scaler_root)
 
-    def _create_table(self):
+    def _create_table(self) -> None:
         query = SheetQuery.create_table(self)
         self.db.exec(query)
 
-    def _drop_table(self):
+    def _drop_table(self) -> None:
         query = SheetQuery.drop_table(self)
         self.db.exec(query)
 
-    def _insert_data(self, csv_path: str):
+    def _insert_data(self, csv_path: str | Path) -> None:
         query = SheetQuery.copy_csv(self, csv_path)
         self.db.exec(query)
 
     def _merge_subsets(self, subsets: list[SheetSubset]) -> pd.DataFrame:
-        dataframes = []
-
-        for subset in subsets:
-            dataframes.append(subset.df)
+        dataframes = [subset.df for subset in subsets]
 
         return pd.concat(dataframes, ignore_index=True)
 
@@ -102,7 +100,7 @@ class Sheet:
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
-        scaler_root = os.path.join(self.root, self.table_name)
+        scaler_root = self.root / self.table_name
 
         subsets = [SheetSubset(df, train=self.train)]
 
@@ -118,26 +116,27 @@ class Sheet:
 
         return self._merge_subsets(subsets)
 
-    def load_csv(self):
-        csv_path = os.path.join(self.root, "transformed", self.file_name)
+    def load_csv(self) -> None:
+        csv_path = self.root / "transformed" / self.file_name
 
-        if os.path.exists(csv_path) and not self.force_insert:
+        if csv_path.exists() and not self.force_insert:
             if self.drop_table:
                 self._insert_data(csv_path)
             return
 
         df = pd.read_csv(
             self.source_csv_path,
-            usecols=self.columns.keys(),
+            usecols=list(self.columns.keys()),
             dtype=self.columns,
         )
 
         if self.id_column not in df.columns:
-            raise ValueError(f"CSV file must contain an '{self.id_column}' column.")
+            msg = f"CSV file must contain an '{self.id_column}' column."
+            raise ValueError(msg)
 
         df = self._transform_data(df)
 
-        os.makedirs(os.path.join(self.root, "transformed"), exist_ok=True)
+        (self.root / "transformed").mkdir(parents=True, exist_ok=True)
 
         df[self.table_fields.keys()].to_csv(csv_path, index=False)
 
@@ -149,9 +148,9 @@ class SheetJoinCondition:
         self,
         l_sheet: Sheet,
         r_sheet: Sheet,
-        columns: tuple[str] = None,
+        columns: tuple[str, str] | None = None,
         mode: Literal["left", "right", "natural", "semi", "inner"] = "natural",
-    ):
+    ) -> None:
         if columns is None:
             columns = (l_sheet.id_column, r_sheet.id_column)
 
@@ -160,23 +159,23 @@ class SheetJoinCondition:
         self.l_column, self.r_column = columns
         self.mode = mode
 
-    def prase(self):
+    def prase(self) -> str:
         if self.l_column == self.r_column:
             return f"USING ({self.l_column})"
 
-        return f"ON ({self.l_sheet.table_name}.{self.l_column}={self.r_sheet.table_name}.{self.r_column})"
+        return f"ON ({self.l_sheet.table_name}.{self.l_column}={self.r_sheet.table_name}.{self.r_column})"  # noqa: E501
 
     @property
-    def _mode(self):
+    def _mode(self) -> str:
         return self.mode.upper()
 
     @property
-    def _table_name(self):
+    def _table_name(self) -> str:
         return self.r_sheet.table_name
 
 
 class SheetQuery(Query):
-    def __init__(self, query: Union[str, list[str]]):
+    def __init__(self, query: str | list[str]) -> None:
         if isinstance(query, str):
             query = [query]
 
@@ -193,7 +192,8 @@ class SheetQuery(Query):
 
     def _add_query(
         self,
-        query: Union[str, list[str]],
+        query: str | list[str],
+        *,
         inplace: bool = True,
     ) -> "SheetQuery":
         if isinstance(query, list):
@@ -215,14 +215,13 @@ class SheetQuery(Query):
         return sq
 
     def parse(self) -> str:
-        final_query = " ".join(self.query) + ";"
-
-        return final_query
+        return " ".join(self.query) + ";"
 
     def where(
         self,
-        condition: Union[str, list[str]],
+        condition: str | list[str],
         operator: Literal["and", "or"] = "and",
+        *,
         inplace: bool = True,
     ) -> "SheetQuery":
         if isinstance(condition, str):
@@ -239,11 +238,12 @@ class SheetQuery(Query):
                 query.append(f"WHERE {c}")
                 contains_where = True
 
-        return self._add_query(query, inplace)
+        return self._add_query(query, inplace=inplace)
 
     def find_by_row_id(
         self,
-        row_id: Union[int, list[int]],
+        row_id: int | list[int],
+        *,
         inplace: bool = True,
     ) -> "SheetQuery":
         if isinstance(row_id, int):
@@ -255,19 +255,19 @@ class SheetQuery(Query):
         if inplace:
             self.query = [query]
             return self.where(condition, inplace=inplace)
-        else:
-            return SheetQuery(query).where(condition, inplace=inplace)
+        return SheetQuery(query).where(condition, inplace=inplace)
 
     def find_by_id(
         self,
         column_id: str,
-        id: Union[str, list[str]],
+        ids: str | list[str],
+        *,
         inplace: bool = True,
     ) -> "SheetQuery":
-        if isinstance(id, str):
-            id = [id]
+        if isinstance(ids, str):
+            ids = [ids]
 
-        cols = ",".join(map(lambda col: f"'{col}'", id))
+        cols = ",".join(f"'{col}'" for col in ids)
 
         condition = f"{SheetQuery._parse_column(column_id)} IN ({cols})"
 
@@ -276,6 +276,7 @@ class SheetQuery(Query):
     def join(
         self,
         condition: SheetJoinCondition,
+        *,
         inplace: bool = True,
     ) -> "SheetQuery":
         query = [f"{condition._mode} JOIN {condition._table_name}"]
@@ -283,12 +284,13 @@ class SheetQuery(Query):
         if condition.mode != "natural":
             query.append(condition.prase())
 
-        return self._add_query(query, inplace)
+        return self._add_query(query, inplace=inplace)
 
     def limit(
         self,
         limit: int,
-        offset: int = None,
+        offset: int | None = None,
+        *,
         inplace: bool = True,
     ) -> "SheetQuery":
         query = [f"LIMIT {limit}"]
@@ -296,15 +298,15 @@ class SheetQuery(Query):
         if offset is not None:
             query.append(f"OFFSET {offset}")
 
-        return self._add_query(query, inplace)
+        return self._add_query(query, inplace=inplace)
 
     @staticmethod
     def select(
         sheet: Sheet,
-        columns: Union[str, list[str]] = "*",
+        columns: str | list[str] = "*",
     ) -> "SheetQuery":
         if isinstance(columns, list):
-            columns = ",".join(map(lambda col: SheetQuery._parse_column(col), columns))
+            columns = ",".join(SheetQuery._parse_column(col) for col in columns)
 
         query = [
             f"SELECT row_number() OVER () - 1 AS row_num, {columns} FROM {sheet.table_name}"
@@ -315,7 +317,7 @@ class SheetQuery(Query):
     @staticmethod
     def count(
         sheet: Sheet,
-        columns: Union[Literal["*"], list[str]] = "*",
+        columns: list[str] | str = "*",
     ) -> "SheetQuery":
         count = []
 
@@ -324,9 +326,8 @@ class SheetQuery(Query):
 
         else:
             for column in columns:
-                count.append(
-                    f"COUNT({SheetQuery._parse_column(column)}) AS {SheetQuery._parse_column(column)}"
-                )
+                parsed_column = SheetQuery._parse_column(column)
+                count.append(f"COUNT({parsed_column}) AS {parsed_column}")
 
         query = [f"SELECT {','.join(count)} FROM {sheet.table_name}"]
 
@@ -334,10 +335,7 @@ class SheetQuery(Query):
 
     @staticmethod
     def update(sheet: Sheet, fields: dict[str, Any]) -> "SheetQuery":
-        update = []
-
-        for f in fields:
-            update.append(f"{SheetQuery._parse_column(f)}={fields[f]}")
+        update = [f"{SheetQuery._parse_column(f)}={fields[f]}" for f in fields]
 
         query = f"UPDATE {sheet.table_name} SET {','.join(update)}"
 
@@ -360,10 +358,8 @@ class SheetQuery(Query):
         return SheetQuery(drop_query)
 
     @staticmethod
-    def copy_csv(sheet: Sheet, csv_path: str) -> "SheetQuery":
-        copy_query = (
-            f"COPY {sheet.table_name} FROM '{csv_path}' (FORMAT CSV, HEADER TRUE)"
-        )
+    def copy_csv(sheet: Sheet, csv_path: str | Path) -> "SheetQuery":
+        copy_query = f"COPY {sheet.table_name} FROM '{csv_path}' (FORMAT CSV, HEADER TRUE)"
 
         return SheetQuery(copy_query)
 
